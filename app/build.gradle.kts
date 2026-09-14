@@ -1,0 +1,73 @@
+import java.util.Properties
+
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// The debug keystore lives outside the repo (path comes from local.properties),
+// so a rebuilt environment signs with the same key and the APK still installs
+// over the copy already on the phone.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+android {
+    namespace = "io.github.ealang.pebbletelegramwebhook"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "io.github.ealang.pebbletelegramwebhook"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "0.1"
+    }
+
+    localProps["DEBUG_KEYSTORE"]?.toString()?.let { path ->
+        signingConfigs {
+            getByName("debug") {
+                storeFile = file(path)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+dependencies {
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+
+    implementation(platform("androidx.compose:compose-bom:2024.09.03"))
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.activity:activity-compose:1.9.2")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+}
