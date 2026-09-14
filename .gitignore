@@ -11,3 +11,4 @@ captures/
 
 # TDLib native binaries — built locally by scripts/build-tdlib.sh, never committed
 app/src/main/jniLibs/
+.kotlin/
