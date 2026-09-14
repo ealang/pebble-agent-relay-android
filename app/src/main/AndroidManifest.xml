@@ -9,8 +9,12 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Backups are disabled deliberately: the TDLib database on disk is the
+         user's logged-in Telegram session, and its encryption key must be
+         stored alongside it. With backups off, neither ever leaves the app's
+         private sandbox, so plain SharedPreferences is sufficient protection. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:label="Pebble Telegram Webhook"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
