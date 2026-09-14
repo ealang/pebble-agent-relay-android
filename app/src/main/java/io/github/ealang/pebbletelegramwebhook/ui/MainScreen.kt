@@ -91,18 +91,19 @@ fun MainScreen(tick: Int, state: ScreenState, actions: ScreenActions, onPoll: ()
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Pebble Telegram Webhook", style = MaterialTheme.typography.headlineSmall)
-        ServerCard(tick, state, actions)
+        ServerCard(state, actions)
         StatusCard(state, actions)
-        TelegramCard(tick, state, actions)
+        TelegramCard(state, actions)
     }
 }
 
 // ------------------------------- server -------------------------------
 
 @Composable
-private fun ServerCard(tick: Int, state: ScreenState, actions: ScreenActions) {
-    // Editable copies re-seeded whenever the underlying fact changes.
-    var portText by remember(tick) { mutableStateOf(state.port.toString()) }
+private fun ServerCard(state: ScreenState, actions: ScreenActions) {
+    // Editable copy, re-seeded only when the *saved* value changes — never
+    // on the periodic refresh, which would wipe in-progress typing.
+    var portText by remember(state.port) { mutableStateOf(state.port.toString()) }
     var showToken by remember { mutableStateOf(false) }
 
     SectionCard("Server") {
@@ -230,13 +231,24 @@ private fun FailedRow(item: MessageStore.Item, actions: ScreenActions) {
 // ------------------------------ telegram ------------------------------
 
 @Composable
-private fun TelegramCard(tick: Int, state: ScreenState, actions: ScreenActions) {
-    var apiIdText by remember(tick) { mutableStateOf(state.telegramApiId?.toString() ?: "") }
-    var apiHashText by remember(tick) { mutableStateOf(state.telegramApiHash ?: "") }
+private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
+    // Each editable copy is keyed on its saved value: it re-seeds when a
+    // save lands (including from elsewhere), but survives the periodic
+    // refresh untouched while the user is typing.
+    var apiIdText by remember(state.telegramApiId) {
+        mutableStateOf(state.telegramApiId?.toString() ?: "")
+    }
+    var apiHashText by remember(state.telegramApiHash) {
+        mutableStateOf(state.telegramApiHash ?: "")
+    }
     var authInput by remember { mutableStateOf("") }
-    var chatIdText by remember(tick) { mutableStateOf(state.telegramChatId?.toString() ?: "") }
+    var chatIdText by remember(state.telegramChatId) {
+        mutableStateOf(state.telegramChatId?.toString() ?: "")
+    }
     var chatCheckResult by remember { mutableStateOf<String?>(null) }
-    var signatureText by remember(tick) { mutableStateOf(state.telegramSignature) }
+    var signatureText by remember(state.telegramSignature) {
+        mutableStateOf(state.telegramSignature)
+    }
 
     SectionCard("Telegram") {
         Text(state.telegramStatus, style = MaterialTheme.typography.bodyMedium)
