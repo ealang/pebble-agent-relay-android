@@ -14,16 +14,14 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.fillMaxSize
 import io.github.ealang.pebbletelegramwebhook.pipeline.MessageStore
 import io.github.ealang.pebbletelegramwebhook.telegram.TelegramEngine
+import io.github.ealang.pebbletelegramwebhook.ui.AppTheme
 import io.github.ealang.pebbletelegramwebhook.ui.MainScreen
 import io.github.ealang.pebbletelegramwebhook.ui.ScreenActions
 import io.github.ealang.pebbletelegramwebhook.ui.ScreenState
@@ -48,6 +46,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Android 15 imposes edge-to-edge on anything targeting SDK 35 and
+        // offers no opt-out; asking for it here just makes every version
+        // behave the way the newest one will. The layout handles the insets.
+        enableEdgeToEdge()
 
         // The notification is a requirement of the foreground service; ask
         // once up front so flipping the toggle later isn't interrupted.
@@ -83,15 +86,12 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    MainScreen(
-                        tick = tick,
-                        state = snapshot(),
-                        actions = actions,
-                        onPoll = ::bump,
-                    )
-                }
+            AppTheme {
+                MainScreen(
+                    state = snapshot(tick),
+                    actions = actions,
+                    onPoll = ::bump,
+                )
             }
         }
     }
@@ -117,7 +117,12 @@ class MainActivity : ComponentActivity() {
 
     // ------------------------------ snapshot ------------------------------
 
-    private fun snapshot(): ScreenState {
+    /**
+     * Every fact the screen renders, read fresh. [refreshTick] is not used
+     * for its value: passing it means the read happens during composition,
+     * which is what makes Compose recompose when [bump] moves it.
+     */
+    private fun snapshot(refreshTick: Int): ScreenState {
         val config = Config(this)
         // When the service is down, read the queue directly — the failed
         // items are still on disk and still reviewable.

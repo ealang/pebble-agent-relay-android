@@ -5,16 +5,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,8 +76,9 @@ class ScreenState(
     val telegramSignature: String,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(tick: Int, state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
+fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
     // A low-cost heartbeat while the screen is visible: counters and the log
     // move without user action, so re-snapshot every couple of seconds.
     LaunchedEffect(Unit) {
@@ -83,17 +88,31 @@ fun MainScreen(tick: Int, state: ScreenState, actions: ScreenActions, onPoll: ()
         }
     }
 
-    Column(
+    Scaffold(
+        // The app draws edge to edge, so the keyboard is an inset like any
+        // other: without this it covers the lower fields instead of
+        // shortening the page they scroll in.
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("Pebble Telegram Webhook", style = MaterialTheme.typography.headlineSmall)
-        ServerCard(state, actions)
-        StatusCard(state, actions)
-        TelegramCard(state, actions)
+            .imePadding(),
+        topBar = { TopAppBar(title = { Text("Pebble Telegram Webhook") }) },
+    ) { insets ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                // Scaffold measures the status and navigation bars and the
+                // top bar's height into this; skipping it is what puts the
+                // first card under the clock and the last under the gesture
+                // bar.
+                .padding(insets)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ServerCard(state, actions)
+            StatusCard(state, actions)
+            TelegramCard(state, actions)
+        }
     }
 }
 
