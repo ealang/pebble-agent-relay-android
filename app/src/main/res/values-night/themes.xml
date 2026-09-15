@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The dark counterpart, picked by the system's night configuration — the same
+  signal Compose reads to choose its dark colour scheme, so the window and its
+  contents can never disagree.
+-->
+<resources>
+    <style name="Theme.App" parent="android:Theme.Material.NoActionBar" />
+</resources>

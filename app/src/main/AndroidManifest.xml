@@ -18,6 +18,7 @@
         android:label="Pebble Telegram Webhook"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
+        android:theme="@style/Theme.App"
         tools:targetApi="35">
 
         <activity

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The window theme, which exists to do exactly two things: suppress the
+  platform's own title bar, since Compose draws one, and set the colour the
+  window starts out as so launching doesn't flash the wrong shade before the
+  first frame. Every colour the user actually sees comes from Material 3 in
+  Compose, not from here.
+-->
+<resources>
+    <style name="Theme.App" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
