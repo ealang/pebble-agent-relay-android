@@ -185,10 +185,7 @@ class MainActivity : ComponentActivity() {
 
     private fun savePort(text: String) {
         val port = text.trim().toIntOrNull()
-        // TEMPORARY: floor dropped from 1024 to 1 so a
-        // privileged port (e.g. 80) can be entered to exercise the
-        // bind-failure UI. Restore the 1024 floor before release.
-        if (port == null || port !in 1..65535) {
+        if (port == null || port !in 1024..65535) {
             toast("Port must be a number between 1024 and 65535.")
             bump() // re-seed the field from the saved value
             return
