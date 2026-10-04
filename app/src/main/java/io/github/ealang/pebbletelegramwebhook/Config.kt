@@ -33,17 +33,8 @@ class Config(context: Context) {
         set(value) = prefs.edit().putInt(KEY_PORT, value).apply()
 
     var token: String
-        get() {
-            secrets.get(KEY_TOKEN)?.let { return it }
-            // Installs that predate SecretStore have the token in plain
-            // prefs; lift it rather than rotating it under the caller.
-            prefs.getString(KEY_TOKEN, null)?.let {
-                secrets.put(KEY_TOKEN, it)
-                prefs.edit().remove(KEY_TOKEN).apply()
-                return it
-            }
-            return generateToken().also { secrets.put(KEY_TOKEN, it) }
-        }
+        get() = secrets.get(KEY_TOKEN)
+            ?: generateToken().also { secrets.put(KEY_TOKEN, it) }
         set(value) = secrets.put(KEY_TOKEN, value)
 
     fun regenerateToken(): String = generateToken().also { token = it }
@@ -85,14 +76,6 @@ class Config(context: Context) {
     val telegramDbKey: ByteArray
         get() {
             secrets.get(KEY_TG_DB_KEY)?.let {
-                return Base64.decode(it, Base64.NO_WRAP)
-            }
-            // Lift a pre-SecretStore key from plain prefs; rotating it
-            // would make the existing TDLib database unreadable and log
-            // the account out.
-            prefs.getString(KEY_TG_DB_KEY, null)?.let {
-                secrets.put(KEY_TG_DB_KEY, it)
-                prefs.edit().remove(KEY_TG_DB_KEY).apply()
                 return Base64.decode(it, Base64.NO_WRAP)
             }
             val fresh = ByteArray(32).also { SecureRandom().nextBytes(it) }
