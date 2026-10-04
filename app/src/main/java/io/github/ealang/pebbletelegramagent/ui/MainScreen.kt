@@ -287,7 +287,7 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    "POST /webhook, loopback only",
+                    "POST /index, loopback only",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -353,7 +353,7 @@ private fun CopySettingsCard(state: ScreenState) {
         )
 
         FieldLabel("Webhook URL")
-        CopyBox("http://127.0.0.1:${state.port}/webhook", "webhook URL")
+        CopyBox("http://127.0.0.1:${state.port}/index", "webhook URL")
 
         FieldLabel("Headers")
         Row(

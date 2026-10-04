@@ -71,41 +71,40 @@ class WebhookServerTest {
     }
 
     @Test
-    fun `health is open, no token needed`() {
-        val (code, body) = request("/health", method = "GET", auth = null)
-        assertEquals(200, code)
-        assertTrue(body.getBoolean("ok"))
-    }
-
-    @Test
     fun `unknown path is 404 even without a token`() {
         val (code, _) = request("/nope", auth = null)
         assertEquals(404, code)
     }
 
     @Test
+    fun `the old health endpoint is gone`() {
+        val (code, _) = request("/health", method = "GET", auth = null)
+        assertEquals(404, code)
+    }
+
+    @Test
     fun `missing token is rejected`() {
-        val (code, _) = request("/webhook", auth = null, form = mapOf("transcription" to "hi"))
+        val (code, _) = request("/index", auth = null, form = mapOf("transcription" to "hi"))
         assertEquals(401, code)
         assertEquals(0, enqueued.size)
     }
 
     @Test
     fun `wrong token is rejected`() {
-        val (code, _) = request("/webhook", auth = "Bearer wrong", form = mapOf("transcription" to "hi"))
+        val (code, _) = request("/index", auth = "Bearer wrong", form = mapOf("transcription" to "hi"))
         assertEquals(401, code)
         assertEquals(0, enqueued.size)
     }
 
     @Test
     fun `GET on the webhook is method not allowed`() {
-        val (code, _) = request("/webhook", method = "GET")
+        val (code, _) = request("/index", method = "GET")
         assertEquals(405, code)
     }
 
     @Test
     fun `no transcription field is a 400`() {
-        val (code, body) = request("/webhook", form = mapOf("other" to "x"))
+        val (code, body) = request("/index", form = mapOf("other" to "x"))
         assertEquals(400, code)
         assertTrue(body.getString("error").contains("transcription"))
         assertEquals(0, enqueued.size)
@@ -113,7 +112,7 @@ class WebhookServerTest {
 
     @Test
     fun `blank transcription is a 400`() {
-        val (code, _) = request("/webhook", form = mapOf("transcription" to "   "))
+        val (code, _) = request("/index", form = mapOf("transcription" to "   "))
         assertEquals(400, code)
         assertEquals(0, enqueued.size)
     }
@@ -121,7 +120,7 @@ class WebhookServerTest {
     @Test
     fun `a good message is queued with its fields parsed`() {
         val (code, body) = request(
-            "/webhook",
+            "/index",
             form = mapOf(
                 "transcription" to "  hello world ",
                 "recordedAt" to "2026-08-31T22:14:03Z",
@@ -141,7 +140,7 @@ class WebhookServerTest {
     @Test
     fun `recordedAt also accepts epoch milliseconds`() {
         val (code, _) = request(
-            "/webhook",
+            "/index",
             form = mapOf("transcription" to "hi", "recordedAt" to "1756678443000"),
         )
         assertEquals(200, code)
@@ -151,7 +150,7 @@ class WebhookServerTest {
     @Test
     fun `unparseable recordedAt falls back to zero rather than failing`() {
         val (code, _) = request(
-            "/webhook",
+            "/index",
             form = mapOf("transcription" to "hi", "recordedAt" to "yesterday-ish"),
         )
         assertEquals(200, code)
@@ -161,17 +160,17 @@ class WebhookServerTest {
     @Test
     fun `enqueue failure surfaces as a 500 so the sender retries`() {
         enqueueError = RuntimeException("disk full")
-        val (code, body) = request("/webhook", form = mapOf("transcription" to "hi"))
+        val (code, body) = request("/index", form = mapOf("transcription" to "hi"))
         assertEquals(500, code)
         assertTrue(body.getString("error").contains("queue"))
     }
 
     @Test
     fun `every request lands one line in the debug log`() {
-        request("/health", method = "GET", auth = null)
-        request("/webhook", form = mapOf("transcription" to "hi"))
+        request("/nope", method = "GET", auth = null)
+        request("/index", form = mapOf("transcription" to "hi"))
         assertEquals(2, logged.size)
-        assertTrue(logged[0].startsWith("GET /health"))
-        assertTrue(logged[1].startsWith("POST /webhook"))
+        assertTrue(logged[0].startsWith("GET /nope"))
+        assertTrue(logged[1].startsWith("POST /index"))
     }
 }

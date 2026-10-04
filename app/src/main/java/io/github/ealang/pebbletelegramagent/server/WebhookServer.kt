@@ -43,17 +43,9 @@ class WebhookServer(
     private fun handle(session: IHTTPSession): Response {
         val uri = session.uri.trimEnd('/').ifEmpty { "/" }
 
-        // Open on purpose: something has to be probe-able to tell "wrong
-        // port" apart from "wrong token".
-        if (uri == "/health") {
-            return json(
-                Response.Status.OK,
-                JSONObject().put("ok", true).put("service", "pebble-telegram-agent"),
-            )
-        }
-
         // Unknown paths 404 before auth is checked — a probe of the wrong
-        // port learns "not here" rather than "token needed".
+        // port learns "not here" rather than "token needed". This is the
+        // only path; there is no unauthenticated endpoint at all.
         if (uri != PATH) {
             return json(Response.Status.NOT_FOUND, JSONObject().put("error", "Not found: $uri"))
         }
@@ -153,7 +145,8 @@ class WebhookServer(
 
     companion object {
         private const val TAG = "pebble-telegram-agent"
-        const val PATH = "/webhook"
+        /** Matches the Pebble app's own naming for this feature ("Index"). */
+        const val PATH = "/index"
 
         /**
          * Hardcoded to loopback: the caller is on this same phone, so the

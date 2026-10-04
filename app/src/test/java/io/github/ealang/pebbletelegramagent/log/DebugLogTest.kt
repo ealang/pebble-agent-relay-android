@@ -53,8 +53,10 @@ class DebugLogTest {
     @Test
     fun `tail spans into the previous generation after rotation`() {
         val log = DebugLog(temp.root)
-        val bulk = "x".repeat(64 * 1024)
-        repeat(5) { log.record("old-$it", detail = bulk) } // forces a rotation
+        // ~3 KB lines against the ~5 KB cap: two per generation, so the
+        // current file ends up with fewer lines than the tail asks for.
+        val bulk = "x".repeat(3 * 1024)
+        repeat(5) { log.record("old-$it", detail = bulk) } // forces rotations
         log.record("fresh")
 
         val tail = log.tail(3)
