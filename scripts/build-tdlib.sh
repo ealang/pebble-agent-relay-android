@@ -73,7 +73,17 @@ for ABI in $ABIS; do
 done
 if [ -n "$MISSING_ABIS" ]; then
   sed -i "s|^for ABI in .* ; do$|for ABI in$MISSING_ABIS ; do|" build-openssl.sh
-  ./build-openssl.sh "$ANDROID_HOME" "$NDK_VERSION" "$OPENSSL_DIR"
+  # The stock script refuses an existing output dir, so build the missing
+  # ABIs into a scratch dir and move them in — each ABI's output tree
+  # ($ABI/{lib,include}) is self-contained.
+  SCRATCH_SSL="$OPENSSL_DIR.partial"
+  rm -rf "$SCRATCH_SSL"
+  ./build-openssl.sh "$ANDROID_HOME" "$NDK_VERSION" "$SCRATCH_SSL"
+  mkdir -p "$OPENSSL_DIR"
+  for ABI in $MISSING_ABIS; do
+    mv "$SCRATCH_SSL/$ABI" "$OPENSSL_DIR/$ABI"
+  done
+  rm -rf "$SCRATCH_SSL"
 fi
 
 # --- Build TDLib (Java interface: generates TdApi.java, builds libtdjni.so) --
