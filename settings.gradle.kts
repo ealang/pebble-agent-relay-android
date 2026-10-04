@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "pebble-telegram-webhook"
+rootProject.name = "pebble-telegram-agent"
 include(":app")

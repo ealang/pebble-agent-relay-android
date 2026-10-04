@@ -15,7 +15,7 @@
          private sandbox, so plain SharedPreferences is sufficient protection. -->
     <application
         android:allowBackup="false"
-        android:label="Pebble Telegram Webhook"
+        android:label="Pebble Telegram Agent"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.App"
@@ -24,7 +24,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Pebble Telegram Webhook">
+            android:label="Pebble Telegram Agent">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

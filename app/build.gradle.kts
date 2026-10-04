@@ -35,11 +35,11 @@ val telegramApiId = buildSetting("TELEGRAM_API_ID")?.toIntOrNull() ?: 0
 val telegramApiHash = buildSetting("TELEGRAM_API_HASH").orEmpty()
 
 android {
-    namespace = "io.github.ealang.pebbletelegramwebhook"
+    namespace = "io.github.ealang.pebbletelegramagent"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.ealang.pebbletelegramwebhook"
+        applicationId = "io.github.ealang.pebbletelegramagent"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
