@@ -16,6 +16,7 @@ import android.util.Log
 import io.github.ealang.pebbletelegramagent.log.DebugLog
 import io.github.ealang.pebbletelegramagent.pipeline.DrainReport
 import io.github.ealang.pebbletelegramagent.pipeline.MessageStore
+import io.github.ealang.pebbletelegramagent.pipeline.Meta
 import io.github.ealang.pebbletelegramagent.pipeline.PipelineWorker
 import io.github.ealang.pebbletelegramagent.pipeline.RetryGate
 import io.github.ealang.pebbletelegramagent.server.WebhookServer
@@ -399,6 +400,25 @@ class WebhookService : Service() {
             context.startService(
                 Intent(context, WebhookService::class.java).setAction(ACTION_STOP),
             )
+        }
+
+        /**
+         * Durable enqueue from the PebbleKit ingress — the second front door
+         * into the same pipeline the webhook feeds. Safe whether or not the
+         * service is up: enqueue only ever creates files, so a fresh store
+         * cannot collide with the running worker (the same reasoning that
+         * lets the webhook enqueue from NanoHTTPD's thread). Returns true
+         * once the item is on disk — the caller's Ack must mean that much.
+         */
+        fun enqueueExternal(context: Context, meta: Meta): Boolean = try {
+            val store = activeStore ?: MessageStore(context.filesDir)
+            val item = store.enqueue(meta)
+            (activeLog ?: DebugLog(context.filesDir)).record("received", meta.client, item.name)
+            activeWorker?.wake()
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Enqueue from the Pebble ingress failed", e)
+            false
         }
 
         /** Queue depth and failed items for the UI, or null when stopped. */
