@@ -6,12 +6,15 @@ import io.github.ealang.pebbletelegramwebhook.server.WebhookServer
 import java.security.SecureRandom
 
 /**
- * Settings, in plain SharedPreferences.
+ * Settings. Plain facts live in plain SharedPreferences; the two real
+ * secrets — the bearer token and TDLib's database key — live in
+ * [SecretStore], encrypted under a Keystore key.
  *
- * Plain on purpose: backups are disabled app-wide, so nothing here ever
- * leaves the device, and SharedPreferences are app-private via the per-app
- * UID sandbox. The threats that remains — root, and `run-as` on a debuggable
- * build — are ones no on-device encryption layer survives anyway.
+ * The split is deliberate: backups are disabled app-wide and prefs are
+ * app-private by uid, so the plain half never leaves the device either.
+ * The SecretStore layer is for the copies that ignore `allowBackup` —
+ * device-to-device migration, OEM cloud "transfer" tools — where ciphertext
+ * whose key is stranded in this phone's TEE is worthless.
  *
  * The token is generated on first read rather than left blank: a server
  * whose auth is "" until someone fills it in is a server that ships
@@ -22,6 +25,8 @@ class Config(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences("pebble-telegram-webhook", Context.MODE_PRIVATE)
 
+    private val secrets = SecretStore(context)
+
     /** The webhook listener's port, bound at service start; changing it restarts the service. */
     var port: Int
         get() = prefs.getInt(KEY_PORT, WebhookServer.PORT)
@@ -29,12 +34,17 @@ class Config(context: Context) {
 
     var token: String
         get() {
-            prefs.getString(KEY_TOKEN, null)?.let { return it }
-            return generateToken().also {
-                prefs.edit().putString(KEY_TOKEN, it).apply()
+            secrets.get(KEY_TOKEN)?.let { return it }
+            // Installs that predate SecretStore have the token in plain
+            // prefs; lift it rather than rotating it under the caller.
+            prefs.getString(KEY_TOKEN, null)?.let {
+                secrets.put(KEY_TOKEN, it)
+                prefs.edit().remove(KEY_TOKEN).apply()
+                return it
             }
+            return generateToken().also { secrets.put(KEY_TOKEN, it) }
         }
-        set(value) = prefs.edit().putString(KEY_TOKEN, value).apply()
+        set(value) = secrets.put(KEY_TOKEN, value)
 
     fun regenerateToken(): String = generateToken().also { token = it }
 
@@ -59,18 +69,25 @@ class Config(context: Context) {
 
     /**
      * TDLib's local-database encryption key, random per install. The
-     * database holds the account's session keys, so a per-install key at
-     * least ties the database file to this app's private storage.
+     * database holds the account's session keys — this is the secret the
+     * SecretStore layer exists for: a copied database file is useless
+     * without it, and the Keystore-wrapped key cannot leave this phone.
      */
     val telegramDbKey: ByteArray
         get() {
+            secrets.get(KEY_TG_DB_KEY)?.let {
+                return Base64.decode(it, Base64.NO_WRAP)
+            }
+            // Lift a pre-SecretStore key from plain prefs; rotating it
+            // would make the existing TDLib database unreadable and log
+            // the account out.
             prefs.getString(KEY_TG_DB_KEY, null)?.let {
+                secrets.put(KEY_TG_DB_KEY, it)
+                prefs.edit().remove(KEY_TG_DB_KEY).apply()
                 return Base64.decode(it, Base64.NO_WRAP)
             }
             val fresh = ByteArray(32).also { SecureRandom().nextBytes(it) }
-            prefs.edit()
-                .putString(KEY_TG_DB_KEY, Base64.encodeToString(fresh, Base64.NO_WRAP))
-                .apply()
+            secrets.put(KEY_TG_DB_KEY, Base64.encodeToString(fresh, Base64.NO_WRAP))
             return fresh
         }
 

@@ -78,11 +78,22 @@ class WebhookService : Service() {
         Config(this).lastStartFailure = null
         retryDelayMs = INITIAL_RETRY_MS
         startPipeline()
-        // Started here (not only in the activity) so the connection lives
-        // when the service came up on its own — after a reboot, with no
-        // screen ever opened.
-        TelegramEngine.ensureStarted(this)
-        attemptBind()
+        // Everything past the pipeline needs a secret — the engine reads
+        // the database key, binding reads the token — so it waits for the
+        // Keystore warm-up instead of doing that first contact on the main
+        // thread. The callback lands on the main thread, where all of this
+        // state lives; re-entry is safe because ensureStarted and
+        // attemptBind are both idempotent.
+        SecretStore.warm(this) {
+            // The service may have been stopped while the Keystore was
+            // warming; a destroyed service must not bind a socket.
+            if (worker == null) return@warm
+            // Started here (not only in the activity) so the connection
+            // lives when the service came up on its own — after a reboot,
+            // with no screen ever opened.
+            TelegramEngine.ensureStarted(this)
+            attemptBind()
+        }
 
         // START_STICKY: if Android reclaims us under memory pressure, come back.
         return START_STICKY

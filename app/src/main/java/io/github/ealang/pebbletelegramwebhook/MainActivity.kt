@@ -62,8 +62,13 @@ class MainActivity : ComponentActivity() {
         }
 
         // Bring the Telegram client up for the auth flow even when the
-        // service isn't running yet.
-        TelegramEngine.ensureStarted(this)
+        // service isn't running yet — but only once the Keystore has been
+        // warmed off the UI thread, because starting the engine reads the
+        // database key and the first Keystore contact can take seconds.
+        SecretStore.warm(this) {
+            TelegramEngine.ensureStarted(this)
+            bump()
+        }
 
         val actions = ScreenActions(
             toggleServer = ::toggleServer,
@@ -131,7 +136,10 @@ class MainActivity : ComponentActivity() {
             serverWanted = config.enabled,
             serverRunning = WebhookService.running,
             port = config.port,
-            token = config.token,
+            // Before the Keystore is warm, reading the token would do the
+            // expensive first contact right here on the UI thread. Render
+            // blank; the warm callback bumps and the real value appears.
+            token = if (SecretStore.ready) config.token else "",
             lastStartFailure = config.lastStartFailure,
             sentSinceUp = WebhookService.sentSinceUp,
             pendingCount = pending,
