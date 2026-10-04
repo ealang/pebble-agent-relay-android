@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.util.Log
-import io.github.ealang.pebbletelegramagent.Config
 import io.github.ealang.pebbletelegramagent.WebhookService
 import io.github.ealang.pebbletelegramagent.pipeline.Meta
 import io.rebble.pebblekit2.client.BasePebbleListenerService
@@ -140,10 +139,12 @@ class PebbleIngressService : BasePebbleListenerService() {
                 receivedAtMs = System.currentTimeMillis(),
             ),
         )
-        // The queue is drained by the service's pipeline. If the user has the
-        // agent enabled but Android reclaimed the service, bring it back;
-        // if the user turned it off, respect that — the item waits on disk.
-        if (queued && Config(this).enabled && !WebhookService.running) {
+        // The queue is drained by the service's pipeline, so make sure one
+        // is up. The webhook toggle is about the listener socket, not about
+        // delivery: with the listener off, the service runs just long enough
+        // to drain and stops itself. While CoreApp is bound to us the
+        // process has foreground importance, so this start is permitted.
+        if (queued) {
             WebhookService.start(this)
         }
         return if (queued) ReceiveResult.Ack else ReceiveResult.Nack

@@ -200,11 +200,10 @@ class MainActivity : ComponentActivity() {
         bump()
     }
 
-    /** The server reads port and token at bind time; a restart applies them. */
+    /** The server reads port and token at bind time; a rebind applies them. */
     private fun bounceServerIfRunning() {
         if (!Config(this).enabled) return
-        WebhookService.stop(this)
-        main.postDelayed({ WebhookService.start(this) }, 300)
+        WebhookService.rebind(this)
         bumpSoon()
     }
 

@@ -24,10 +24,14 @@ import io.github.ealang.pebbletelegramagent.telegram.TelegramDelivery
 import io.github.ealang.pebbletelegramagent.telegram.TelegramEngine
 
 /**
- * Holds the webhook listener and the delivery pipeline for as long as the
- * user wants them up. A foreground service is the only way to keep a
- * listening socket alive on a modern Android — a plain background service is
- * killed within minutes, and the socket dies with it.
+ * Holds the webhook listener and the delivery pipeline. The two have
+ * independent reasons to run: the listener is up while the user's toggle
+ * ([Config.enabled]) says so, and the pipeline is up while either the
+ * listener is or the queue still holds work — a Pebble dictation starts the
+ * service just to deliver, and once the queue is empty (and the listener is
+ * off) the service stops itself. A foreground service is the only way to
+ * keep either alive on a modern Android — a plain background service is
+ * killed within minutes.
  *
  * The service is the orchestrator: it builds the components and owns every
  * edge between them; none of them holds a reference to another. All state is
@@ -57,13 +61,34 @@ class WebhookService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            // "Stop" turns the listener off; delivery is not the user's to
+            // stop. If the queue still holds work the service stays up just
+            // long enough to finish it, then stops itself in onDrainFinished.
             Config(this).enabled = false
             debugLog?.record("stopped by user")
-            stopSelf()
-            return START_NOT_STICKY
+            main.removeCallbacks(retry)
+            server?.stop()
+            server = null
+            running = false
+            if (queueIsEmpty()) {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            baseText = DELIVERING_TEXT
+            notify(baseText)
+            sendBroadcast(Intent(ACTION_STATE_CHANGED).setPackage(packageName))
+            worker?.wake()
+            return START_STICKY
         }
 
-        Config(this).enabled = true
+        // A listener restart (port or token changed): drop the socket here
+        // and let the normal flow below bind it again with the fresh config.
+        if (intent?.action == ACTION_REBIND && server != null) {
+            server?.stop()
+            server = null
+            running = false
+            debugLog?.record("listener restarting to apply settings")
+        }
 
         // Started before the first bind attempt: the five-second foreground
         // deadline must be met regardless of what binding runs into.
@@ -93,7 +118,16 @@ class WebhookService : Service() {
             // lives when the service came up on its own — after a reboot,
             // with no screen ever opened.
             TelegramEngine.ensureStarted(this)
-            attemptBind()
+            if (Config(this).enabled) {
+                attemptBind()
+            } else {
+                // A delivery-only run: the Pebble ingress (or boot, with
+                // messages stranded on disk) started us just to drain.
+                baseText = DELIVERING_TEXT
+                notify(baseText)
+                sendBroadcast(Intent(ACTION_STATE_CHANGED).setPackage(packageName))
+            }
+            worker?.wake()
         }
 
         // START_STICKY: if Android reclaims us under memory pressure, come back.
@@ -177,11 +211,28 @@ class WebhookService : Service() {
             gate?.reset()
         }
         if (report.blockedOn != null) gate?.arm()
+        // A delivery-only run has exactly one job; when the queue is empty
+        // (delivered, confirmed, or parked in failed/) the service is done.
+        // A racing enqueue is safe: the ingress always calls start() after
+        // enqueueing, and that intent recreates the service.
+        if (!Config(this).enabled && queueIsEmpty()) {
+            debugLog?.record("queue drained; stopping")
+            stopSelf()
+            return
+        }
         // Success is silent; the notification only ever gains a failure
         // notice, and re-rendering also clears one whose failed/ emptied.
         notify(baseText)
         sendBroadcast(Intent(ACTION_STATE_CHANGED).setPackage(packageName))
     }
+
+    /**
+     * Empty means nothing pending *and* nothing handed to Telegram still
+     * awaiting confirmation — unreconciled items stay in pending() until the
+     * engine confirms them, so this cannot stop the service out from under
+     * an in-flight send.
+     */
+    private fun queueIsEmpty(): Boolean = store?.pending()?.isEmpty() ?: true
 
     // ------------------------------ listener ------------------------------
 
@@ -196,6 +247,9 @@ class WebhookService : Service() {
     private fun attemptBind() {
         main.removeCallbacks(retry)
         if (server != null) return
+        // The toggle may have gone off between a retry being scheduled and
+        // firing; a disabled listener must stay down.
+        if (!Config(this).enabled) return
 
         val config = Config(this)
         val port = config.port
@@ -299,7 +353,7 @@ class WebhookService : Service() {
             "Webhook server",
             NotificationManager.IMPORTANCE_LOW,
         )
-        channel.description = "Shown while the webhook server is running."
+        channel.description = "Shown while the agent is listening or delivering."
         manager.createNotificationChannel(channel)
 
         val open = PendingIntent.getActivity(
@@ -331,6 +385,12 @@ class WebhookService : Service() {
         private const val NOTIFICATION_ID = 1
 
         const val ACTION_STOP = "io.github.ealang.pebbletelegramagent.STOP"
+
+        /** Drop and re-bind the listener socket to pick up a new port/token. */
+        const val ACTION_REBIND = "io.github.ealang.pebbletelegramagent.REBIND"
+
+        /** The notification text for a run that exists only to drain the queue. */
+        private const val DELIVERING_TEXT = "Delivering queued messages…"
 
         /** Broadcast whenever anything the UI shows may have changed. */
         const val ACTION_STATE_CHANGED = "io.github.ealang.pebbletelegramagent.STATE_CHANGED"
@@ -399,6 +459,13 @@ class WebhookService : Service() {
         fun stop(context: Context) {
             context.startService(
                 Intent(context, WebhookService::class.java).setAction(ACTION_STOP),
+            )
+        }
+
+        /** Applies a changed port/token to a live listener without a stop/start. */
+        fun rebind(context: Context) {
+            context.startService(
+                Intent(context, WebhookService::class.java).setAction(ACTION_REBIND),
             )
         }
 
