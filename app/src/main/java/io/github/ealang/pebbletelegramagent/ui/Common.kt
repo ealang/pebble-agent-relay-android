@@ -77,11 +77,12 @@ fun CollapsibleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Icon before the title: WarnText and the tab dots all lead
+                // with their marker, so the card does too.
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(title, style = MaterialTheme.typography.titleMedium)
                     if (warn) {
                         Icon(
                             Icons.Filled.Warning,
@@ -90,6 +91,7 @@ fun CollapsibleCard(
                             modifier = Modifier.size(18.dp),
                         )
                     }
+                    Text(title, style = MaterialTheme.typography.titleMedium)
                 }
                 // Core icon set only: the chevrons do the expand/collapse job
                 // without pulling in material-icons-extended (see AppIcons).
