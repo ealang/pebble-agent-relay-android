@@ -76,6 +76,8 @@ class MainActivity : ComponentActivity() {
             copyToken = ::copyToken,
             regenerateToken = ::regenerateToken,
             submitAuthInput = { TelegramEngine.submitAuthInput(it) },
+            logOut = { TelegramEngine.logOut() },
+            restartLogin = { TelegramEngine.restartLogin() },
             saveChatId = ::saveChatId,
             testChatId = ::testChatId,
             saveSignature = ::saveSignature,
@@ -147,6 +149,9 @@ class MainActivity : ComponentActivity() {
             logTail = WebhookService.logTail(this, LOG_DIALOG_LINES),
             telegramStage = TelegramEngine.stage,
             telegramStatus = TelegramEngine.statusLine(),
+            telegramHealth = TelegramEngine.health,
+            telegramAccount = TelegramEngine.account,
+            telegramConfigured = TelegramEngine.configured,
             telegramChatId = config.telegramChatId,
             telegramSignature = config.telegramSignature,
         )

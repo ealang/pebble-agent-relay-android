@@ -165,6 +165,55 @@ object TelegramEngine {
     }
 
     /**
+     * End the session, server-side and locally — TDLib deletes its database
+     * and closes. Closed is no longer an end state (see [handleAuth]): a
+     * fresh client comes up immediately and parks at WaitPhoneNumber, so
+     * the next login needs no app restart.
+     */
+    fun logOut() {
+        val tdClient = client ?: return
+        lastProblem = null
+        tdClient.send(TdApi.LogOut()) { result ->
+            if (result is TdApi.Error) {
+                main.post {
+                    lastProblem = result.message
+                    changed()
+                }
+            }
+        }
+    }
+
+    /**
+     * Throw away a half-finished login and park back at the phone prompt.
+     *
+     * TDLib owns the auth stage, which is what makes the login dialog
+     * stateless and resumable — and also what traps anyone whose code
+     * never arrived: reopening the dialog returns to WaitCode with no way
+     * back to the number. Rather than add a Back button and the
+     * stage-shuffling that implies, the Log in button always begins at
+     * the beginning.
+     *
+     * `Destroy` is the call for it — "destroying all local data without a
+     * proper logout … can be called before authorization" — and it lands
+     * on AuthorizationStateClosed, so the restart machinery written for
+     * logout does the rest. At this point in the flow there is no session
+     * and nothing in the database worth keeping, so destroying it costs
+     * nothing.
+     */
+    fun restartLogin() {
+        val tdClient = client ?: return
+        lastProblem = null
+        tdClient.send(TdApi.Destroy()) { result ->
+            if (result is TdApi.Error) {
+                main.post {
+                    lastProblem = result.message
+                    changed()
+                }
+            }
+        }
+    }
+
+    /**
      * Resolve a manually-entered numeric chat id to its title, as the UI's
      * "does this id reach the right place" check. Local cache first (free —
      * LoadChats primed it at login); on a miss, the server request that suits
@@ -300,7 +349,9 @@ object TelegramEngine {
             Stage.PHONE -> "Enter your phone number, with country code (+1…).$problem"
             Stage.CODE -> "Telegram sent a login code — enter it below.$problem"
             Stage.PASSWORD -> "Enter your two-step verification password.$problem"
-            Stage.CLOSED -> "Telegram client closed; restart the app.$problem"
+            // Normally invisible — Closed restarts the client at once — so
+            // seeing it means the restart could not run.
+            Stage.CLOSED -> "Telegram client closed; reopen the app.$problem"
             Stage.READY -> {
                 val who = accountLabel?.let { "Connected as $it" } ?: "Connected"
                 val conn = connectionLabel
@@ -395,7 +446,27 @@ object TelegramEngine {
                 }
             }
 
-            is TdApi.AuthorizationStateClosed -> client = null
+            is TdApi.AuthorizationStateClosed -> {
+                // Not an end state: tear down and bring a fresh client
+                // straight up, which lands at WaitPhoneNumber ready for the
+                // next login. Before this, Closed meant "restart the app".
+                client = null
+                authState = null
+                accountLabel = null
+                // The destination goes with it. Every route to Closed —
+                // LogOut, Destroy, a session revoked from another device —
+                // is documented as destroying all local data, so TDLib's
+                // chat database is now empty and the stored chat id names
+                // something it has never heard of; keeping it would queue
+                // messages that can never resolve. Cleared here rather than
+                // on the logout button because this is the one point every
+                // wipe passes through.
+                appContext?.let {
+                    Config(it).telegramChatId = null
+                    ensureStarted(it)
+                }
+                return
+            }
 
             else -> Unit
         }

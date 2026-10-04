@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import io.github.ealang.pebbletelegramwebhook.pipeline.MessageStore
 import io.github.ealang.pebbletelegramwebhook.telegram.TelegramEngine
 import kotlinx.coroutines.delay
@@ -46,6 +48,8 @@ class ScreenActions(
     val copyToken: () -> Unit,
     val regenerateToken: () -> Unit,
     val submitAuthInput: (String) -> Unit,
+    val logOut: () -> Unit,
+    val restartLogin: () -> Unit,
     val saveChatId: (text: String) -> Unit,
     val testChatId: (onResult: (String) -> Unit) -> Unit,
     val saveSignature: (String) -> Unit,
@@ -69,6 +73,9 @@ class ScreenState(
     val logTail: List<String>,
     val telegramStage: TelegramEngine.Stage,
     val telegramStatus: String,
+    val telegramHealth: TelegramEngine.Health,
+    val telegramAccount: String?,
+    val telegramConfigured: Boolean,
     val telegramChatId: Long?,
     val telegramSignature: String,
 )
@@ -251,52 +258,70 @@ private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
     // Each editable copy is keyed on its saved value: it re-seeds when a
     // save lands (including from elsewhere), but survives the periodic
     // refresh untouched while the user is typing.
-    var authInput by remember { mutableStateOf("") }
     var chatIdText by remember(state.telegramChatId) {
         mutableStateOf(state.telegramChatId?.toString() ?: "")
     }
     var chatCheckResult by remember { mutableStateOf<String?>(null) }
-    var signatureText by remember(state.telegramSignature) {
-        mutableStateOf(state.telegramSignature)
-    }
 
     SectionCard("Telegram") {
-        Text(state.telegramStatus, style = MaterialTheme.typography.bodyMedium)
-
-        // One input serves the whole login; its meaning follows TDLib's state.
-        val authLabel = when (state.telegramStage) {
-            TelegramEngine.Stage.PHONE -> "Phone number (+1…)"
-            TelegramEngine.Stage.CODE -> "Login code"
-            TelegramEngine.Stage.PASSWORD -> "Two-step password"
-            else -> null
-        }
-        if (authLabel != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = authInput,
-                    onValueChange = { authInput = it },
-                    label = { Text(authLabel) },
-                    singleLine = true,
-                    visualTransformation =
-                        if (state.telegramStage == TelegramEngine.Stage.PASSWORD) {
-                            PasswordVisualTransformation()
-                        } else {
-                            VisualTransformation.None
-                        },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    onClick = {
-                        actions.submitAuthInput(authInput)
-                        authInput = ""
-                    },
-                    enabled = authInput.isNotBlank(),
-                ) { Text("Submit") }
+        // One line saying what state we are in and what to do about it —
+        // never which step of a login is pending, which is the dialog's
+        // job. Offline claims nothing else: an unreachable server cannot
+        // confirm the session is still good, so "connected as …" alongside
+        // "offline" would be a contradiction, not extra detail.
+        val (line, fine) = when {
+            // Only in a build made without credentials — nothing the user
+            // can fix on the phone, so it names the build.
+            !state.telegramConfigured ->
+                "This build has no Telegram credentials." to false
+            state.telegramHealth == TelegramEngine.Health.NOT_AUTHENTICATED ->
+                "Not authenticated — log in below." to false
+            state.telegramHealth == TelegramEngine.Health.OFFLINE ->
+                "Offline — messages queue until the network is back." to false
+            state.telegramChatId == null ->
+                "Connected, but no destination chat is set below." to false
+            else -> {
+                val who = state.telegramAccount?.let { " as $it" } ?: ""
+                "Healthy — connected$who." to true
             }
+        }
+        Text(
+            line,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (fine) okGreen else MaterialTheme.colorScheme.error,
+        )
+
+        // Login lives in a dialog, not an always-there field: Log in
+        // whenever anything short of a session exists — a stale login
+        // included — and Log out when connected. Closing the dialog
+        // abandons the attempt; reopening starts a new one.
+        var loginDialog by remember { mutableStateOf(false) }
+        if (state.telegramConfigured) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (state.telegramHealth == TelegramEngine.Health.NOT_AUTHENTICATED) {
+                    TextButton(onClick = {
+                        // Always from the phone number. Resuming mid-flight
+                        // sounds considerate and is a trap: a login code
+                        // that never arrives leaves the dialog stuck at
+                        // "enter the code" forever.
+                        if (state.telegramStage != TelegramEngine.Stage.PHONE) {
+                            actions.restartLogin()
+                        }
+                        loginDialog = true
+                    }) { Text("Log in") }
+                }
+                if (state.telegramStage == TelegramEngine.Stage.READY) {
+                    TextButton(onClick = actions.logOut) { Text("Log out") }
+                }
+            }
+        }
+        if (loginDialog) {
+            LoginDialog(
+                stage = state.telegramStage,
+                status = state.telegramStatus,
+                submit = actions.submitAuthInput,
+                onDismiss = { loginDialog = false },
+            )
         }
 
         // No API ID/hash fields: the pair is baked in at build time. It
@@ -330,22 +355,104 @@ private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
             Text(it, style = MaterialTheme.typography.bodySmall)
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = signatureText,
-                onValueChange = { signatureText = it },
-                label = { Text("Signature (appended line, blank for none)") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                onClick = { actions.saveSignature(signatureText) },
-                enabled = signatureText.trim() != state.telegramSignature,
-            ) { Text("Save") }
-        }
+        SignatureRow(state, actions)
     }
+}
+
+@Composable
+private fun SignatureRow(state: ScreenState, actions: ScreenActions) {
+    var signatureText by remember(state.telegramSignature) {
+        mutableStateOf(state.telegramSignature)
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = signatureText,
+            onValueChange = { signatureText = it },
+            label = { Text("Signature (appended line, blank for none)") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = { actions.saveSignature(signatureText) },
+            enabled = signatureText.trim() != state.telegramSignature,
+        ) { Text("Save") }
+    }
+}
+
+/**
+ * The whole login in one dialog: a single field whose meaning follows the
+ * stage TDLib is waiting in (phone → code → password when two-step is on),
+ * and a status line carrying TDLib's own error when a step is rejected.
+ * Closes itself once the session is up. Deliberately owns no wizard state —
+ * the stage lives in TDLib, and the Log in button resets it before opening
+ * this, so there is never a half-finished attempt to resume into and no
+ * Back button to build. Close is therefore a real cancel, not a pause.
+ */
+@Composable
+private fun LoginDialog(
+    stage: TelegramEngine.Stage,
+    status: String,
+    submit: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var input by remember { mutableStateOf("") }
+
+    LaunchedEffect(stage) {
+        if (stage == TelegramEngine.Stage.READY) onDismiss()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        // Only Close (or Back) ends this, never a stray tap outside the
+        // dialog. Cancelling is destructive here — restartLogin() wipes
+        // the attempt, so reopening means retyping the number and waiting
+        // for a second code — and the moment you are most likely to
+        // fumble a tap is while reaching for the code.
+        properties = DialogProperties(dismissOnClickOutside = false),
+        title = { Text("Log in to Telegram") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(status, style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = {
+                        Text(
+                            when (stage) {
+                                TelegramEngine.Stage.PHONE -> "Phone number (+1…)"
+                                TelegramEngine.Stage.CODE -> "Login code"
+                                TelegramEngine.Stage.PASSWORD -> "Two-step password"
+                                else -> "(no input needed right now)"
+                            },
+                        )
+                    },
+                    visualTransformation = if (stage == TelegramEngine.Stage.PASSWORD) {
+                        PasswordVisualTransformation()
+                    } else {
+                        VisualTransformation.None
+                    },
+                    keyboardOptions = when (stage) {
+                        TelegramEngine.Stage.PHONE ->
+                            KeyboardOptions(keyboardType = KeyboardType.Phone)
+                        TelegramEngine.Stage.CODE ->
+                            KeyboardOptions(keyboardType = KeyboardType.Number)
+                        else -> KeyboardOptions.Default
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                submit(input)
+                input = ""
+            }) { Text("Submit") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
 }

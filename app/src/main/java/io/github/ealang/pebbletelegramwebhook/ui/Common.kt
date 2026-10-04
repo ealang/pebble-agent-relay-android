@@ -11,8 +11,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +43,16 @@ fun KeyValue(label: String, value: String) {
         style = MaterialTheme.typography.bodyMedium,
     )
 }
+
+/**
+ * The "this is fine" green for status text, beside the theme's error red.
+ * Deliberately not a theme slot: with Material You dynamic color every
+ * palette position is derived from the user's wallpaper, so a position
+ * carries no meaning — only a literal color does. Two shades so it stays
+ * legible on either background.
+ */
+val okGreen: Color
+    @Composable get() = if (isSystemInDarkTheme()) Color(0xFF7BC67E) else Color(0xFF2E7D32)
 
 /** Scrollable monospace log lines in a dialog, newest first. */
 @Composable
