@@ -350,11 +350,14 @@ class AgentService : Service() {
         // foreground, not something the user needs to be alerted about.
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Agent service",
+            "Pebble Telegram Agent",
             NotificationManager.IMPORTANCE_LOW,
         )
         channel.description = "Shown while the agent is listening or delivering."
         manager.createNotificationChannel(channel)
+        // The channel used to be registered under the webhook-era id; drop it
+        // so upgraded installs don't show a stale second entry in settings.
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
 
         val open = PendingIntent.getActivity(
             this,
@@ -381,7 +384,8 @@ class AgentService : Service() {
 
     companion object {
         private const val TAG = "pebble-telegram-agent"
-        private const val CHANNEL_ID = "webhook-server"
+        private const val CHANNEL_ID = "agent"
+        private const val LEGACY_CHANNEL_ID = "webhook-server"
         private const val NOTIFICATION_ID = 1
 
         const val ACTION_STOP = "io.github.ealang.pebbletelegramagent.STOP"
