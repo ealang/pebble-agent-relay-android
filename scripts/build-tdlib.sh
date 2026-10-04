@@ -60,11 +60,20 @@ sed -i "s|^for ABI in arm64-v8a armeabi-v7a x86_64 x86 ; do$|for ABI in $ABIS ; 
   build-openssl.sh build-tdlib.sh
 
 # --- Build OpenSSL per ABI (static, OpenSSL 1.1.1w — TDLib's default) --------
+# Reuse is per ABI: a cache populated by an ABIS="arm64-v8a" run must not
+# satisfy a later four-ABI run, or TDLib configures without OpenSSL and dies.
 OPENSSL_DIR="$BUILD_DIR/openssl"
-if [ ! -d "$OPENSSL_DIR" ]; then
+MISSING_ABIS=""
+for ABI in $ABIS; do
+  if [ -d "$OPENSSL_DIR/$ABI" ]; then
+    echo "==> Reusing prebuilt OpenSSL for $ABI"
+  else
+    MISSING_ABIS="$MISSING_ABIS $ABI"
+  fi
+done
+if [ -n "$MISSING_ABIS" ]; then
+  sed -i "s|^for ABI in .* ; do$|for ABI in$MISSING_ABIS ; do|" build-openssl.sh
   ./build-openssl.sh "$ANDROID_HOME" "$NDK_VERSION" "$OPENSSL_DIR"
-else
-  echo "==> Reusing prebuilt OpenSSL in $OPENSSL_DIR"
 fi
 
 # --- Build TDLib (Java interface: generates TdApi.java, builds libtdjni.so) --
