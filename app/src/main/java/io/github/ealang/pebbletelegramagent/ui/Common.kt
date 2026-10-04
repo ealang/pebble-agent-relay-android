@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -88,6 +90,7 @@ val okGreen: Color
 /** Scrollable monospace log lines in a dialog, newest first. */
 @Composable
 fun LogDialog(title: String, lines: List<String>, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -109,6 +112,14 @@ fun LogDialog(title: String, lines: List<String>, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Close") }
+        },
+        dismissButton = {
+            if (lines.isNotEmpty()) {
+                TextButton(onClick = {
+                    // Copied as shown: newest first, one line per event.
+                    clipboard.setText(AnnotatedString(lines.joinToString("\n")))
+                }) { Text("Copy") }
+            }
         },
     )
 }

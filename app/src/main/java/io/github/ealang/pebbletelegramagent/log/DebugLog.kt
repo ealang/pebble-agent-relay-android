@@ -88,8 +88,12 @@ class DebugLog(root: File) {
     companion object {
         private const val TAG = "pebble-telegram-agent"
 
-        /** Per generation; two generations bound the total at ~512 KB. */
-        private const val MAX_BYTES = 256L * 1024
+        /**
+         * Per generation; two generations bound the total at ~10 KB. Small
+         * on purpose: the log exists for debugging the
+         * immediate past, not history — ~50 lines a generation is plenty.
+         */
+        private const val MAX_BYTES = 5L * 1024
 
         private val STAMP = object : ThreadLocal<SimpleDateFormat>() {
             override fun initialValue() =
