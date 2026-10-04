@@ -8,7 +8,7 @@ import android.os.Bundle
 import android.os.DeadObjectException
 import android.os.IBinder
 import android.util.Log
-import io.github.ealang.pebbletelegramagent.WebhookService
+import io.github.ealang.pebbletelegramagent.AgentService
 import io.github.ealang.pebbletelegramagent.pipeline.Meta
 import io.rebble.pebblekit2.client.BasePebbleListenerService
 import io.rebble.pebblekit2.common.SendDataCallback
@@ -130,7 +130,7 @@ class PebbleIngressService : BasePebbleListenerService() {
             Log.w(TAG, "Nacked a message with no usable transcript")
             return ReceiveResult.Nack
         }
-        val queued = WebhookService.enqueueExternal(
+        val queued = AgentService.enqueueExternal(
             this,
             Meta(
                 text = text,
@@ -145,7 +145,7 @@ class PebbleIngressService : BasePebbleListenerService() {
         // to drain and stops itself. While CoreApp is bound to us the
         // process has foreground importance, so this start is permitted.
         if (queued) {
-            WebhookService.start(this)
+            AgentService.start(this)
         }
         return if (queued) ReceiveResult.Ack else ReceiveResult.Nack
     }

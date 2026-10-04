@@ -86,11 +86,11 @@ class MainActivity : ComponentActivity() {
             },
             saveSignature = ::saveSignature,
             retryFailed = { name ->
-                WebhookService.retryFailed(this, name)
+                AgentService.retryFailed(this, name)
                 bumpSoon()
             },
             discardFailed = { name ->
-                WebhookService.discardFailed(this, name)
+                AgentService.discardFailed(this, name)
                 bumpSoon()
             },
         )
@@ -108,7 +108,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        val filter = IntentFilter(WebhookService.ACTION_STATE_CHANGED)
+        val filter = IntentFilter(AgentService.ACTION_STATE_CHANGED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(stateChanged, filter, RECEIVER_NOT_EXPORTED)
         } else {
@@ -136,22 +136,22 @@ class MainActivity : ComponentActivity() {
         val config = Config(this)
         // When the service is down, read the queue directly — the failed
         // items are still on disk and still reviewable.
-        val (pending, failed) = WebhookService.pipelineSnapshot()
+        val (pending, failed) = AgentService.pipelineSnapshot()
             ?: MessageStore(filesDir).let { it.pending().size to it.failed() }
         return ScreenState(
             serverWanted = config.enabled,
-            serverRunning = WebhookService.running,
+            serverRunning = AgentService.running,
             port = config.port,
             // Before the Keystore is warm, reading the token would do the
             // expensive first contact right here on the UI thread. Render
             // blank; the warm callback bumps and the real value appears.
             token = if (SecretStore.ready) config.token else "",
             lastStartFailure = config.lastStartFailure,
-            bindFailed = WebhookService.bindFailed,
-            sentSinceUp = WebhookService.sentSinceUp,
+            bindFailed = AgentService.bindFailed,
+            sentSinceUp = AgentService.sentSinceUp,
             pendingCount = pending,
             failedItems = failed,
-            logTail = WebhookService.logTail(this, LOG_DIALOG_LINES),
+            logTail = AgentService.logTail(this, LOG_DIALOG_LINES),
             telegramStage = TelegramEngine.stage,
             telegramStatus = TelegramEngine.statusLine(),
             telegramHealth = TelegramEngine.health,
@@ -176,7 +176,7 @@ class MainActivity : ComponentActivity() {
 
     private fun toggleServer(wantOn: Boolean) {
         Config(this).enabled = wantOn
-        if (wantOn) WebhookService.start(this) else WebhookService.stop(this)
+        if (wantOn) AgentService.start(this) else AgentService.stop(this)
         bumpSoon()
     }
 
@@ -203,7 +203,7 @@ class MainActivity : ComponentActivity() {
     /** The server reads port and token at bind time; a rebind applies them. */
     private fun bounceServerIfRunning() {
         if (!Config(this).enabled) return
-        WebhookService.rebind(this)
+        AgentService.rebind(this)
         bumpSoon()
     }
 

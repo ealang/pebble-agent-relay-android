@@ -33,12 +33,12 @@
         </activity>
 
         <service
-            android:name=".WebhookService"
+            android:name=".AgentService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a loopback HTTP listener open so a companion app on this phone can hand messages over for forwarding to Telegram." />
+                android:value="Delivers queued watch dictations to Telegram, and optionally keeps a loopback HTTP listener open for other apps on this phone to hand messages over." />
         </service>
 
         <!-- The PebbleKit 2 ingress. Exported with no permission by protocol

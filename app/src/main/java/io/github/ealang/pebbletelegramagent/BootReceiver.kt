@@ -23,7 +23,7 @@ class BootReceiver : BroadcastReceiver() {
         if (Config(context).enabled ||
             MessageStore(context.filesDir).pending().isNotEmpty()
         ) {
-            WebhookService.start(context)
+            AgentService.start(context)
         }
     }
 }

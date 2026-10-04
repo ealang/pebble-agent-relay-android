@@ -24,12 +24,12 @@ import io.github.ealang.pebbletelegramagent.telegram.TelegramDelivery
 import io.github.ealang.pebbletelegramagent.telegram.TelegramEngine
 
 /**
- * Holds the webhook listener and the delivery pipeline. The two have
- * independent reasons to run: the listener is up while the user's toggle
- * ([Config.enabled]) says so, and the pipeline is up while either the
- * listener is or the queue still holds work — a Pebble dictation starts the
- * service just to deliver, and once the queue is empty (and the listener is
- * off) the service stops itself. A foreground service is the only way to
+ * The agent: the Telegram delivery pipeline plus the optional webhook
+ * listener. The two have independent reasons to run: the listener is up
+ * while the user's toggle ([Config.enabled]) says so, and the pipeline is up
+ * while either the listener is or the queue still holds work — a Pebble
+ * dictation starts the service just to deliver, and once the queue is empty
+ * (and the listener is off) the service stops itself. A foreground service is the only way to
  * keep either alive on a modern Android — a plain background service is
  * killed within minutes.
  *
@@ -37,7 +37,7 @@ import io.github.ealang.pebbletelegramagent.telegram.TelegramEngine
  * edge between them; none of them holds a reference to another. All state is
  * main-thread confined except where noted.
  */
-class WebhookService : Service() {
+class AgentService : Service() {
 
     private var server: WebhookServer? = null
     private var store: MessageStore? = null
@@ -350,7 +350,7 @@ class WebhookService : Service() {
         // foreground, not something the user needs to be alerted about.
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Webhook server",
+            "Agent service",
             NotificationManager.IMPORTANCE_LOW,
         )
         channel.description = "Shown while the agent is listening or delivering."
@@ -365,7 +365,7 @@ class WebhookService : Service() {
         val stop = PendingIntent.getService(
             this,
             1,
-            Intent(this, WebhookService::class.java).setAction(ACTION_STOP),
+            Intent(this, AgentService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -448,7 +448,7 @@ class WebhookService : Service() {
          */
         fun start(context: Context) {
             try {
-                context.startForegroundService(Intent(context, WebhookService::class.java))
+                context.startForegroundService(Intent(context, AgentService::class.java))
             } catch (e: Exception) {
                 val reason = "${e::class.java.simpleName}: ${e.message ?: "no detail"}"
                 Log.w(TAG, "Android refused to start the service", e)
@@ -458,14 +458,14 @@ class WebhookService : Service() {
 
         fun stop(context: Context) {
             context.startService(
-                Intent(context, WebhookService::class.java).setAction(ACTION_STOP),
+                Intent(context, AgentService::class.java).setAction(ACTION_STOP),
             )
         }
 
         /** Applies a changed port/token to a live listener without a stop/start. */
         fun rebind(context: Context) {
             context.startService(
-                Intent(context, WebhookService::class.java).setAction(ACTION_REBIND),
+                Intent(context, AgentService::class.java).setAction(ACTION_REBIND),
             )
         }
 
