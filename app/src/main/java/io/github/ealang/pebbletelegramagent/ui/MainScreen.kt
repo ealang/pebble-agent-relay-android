@@ -11,10 +11,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -24,8 +31,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +106,12 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
         }
     }
 
+    // Tab layout: one concern per tab — Status (queue
+    // counters, failures, log), Telegram (account + destination), Index (the
+    // webhook server the Pebble index talks to). Survives rotation via
+    // rememberSaveable, same shell pattern throughout.
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+
     Scaffold(
         // The app draws edge to edge, so the keyboard is an inset like any
         // other: without this it covers the lower fields instead of
@@ -105,6 +120,28 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
             .fillMaxSize()
             .imePadding(),
         topBar = { TopAppBar(title = { Text("Pebble Telegram Agent") }) },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = tab == 0,
+                    onClick = { tab = 0 },
+                    icon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                    label = { Text("Status") },
+                )
+                NavigationBarItem(
+                    selected = tab == 1,
+                    onClick = { tab = 1 },
+                    icon = { Icon(Icons.Filled.Send, contentDescription = null) },
+                    label = { Text("Telegram") },
+                )
+                NavigationBarItem(
+                    selected = tab == 2,
+                    onClick = { tab = 2 },
+                    icon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                    label = { Text("Index") },
+                )
+            }
+        },
     ) { insets ->
         Column(
             modifier = Modifier
@@ -118,9 +155,11 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            ServerCard(state, actions)
-            StatusCard(state, actions)
-            TelegramCard(state, actions)
+            when (tab) {
+                0 -> StatusCard(state, actions)
+                1 -> TelegramCard(state, actions)
+                2 -> ServerCard(state, actions)
+            }
         }
     }
 }
