@@ -63,6 +63,13 @@ android {
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false
+            // Dev APKs carry only the ABIs named in DEV_ABIS (comma-separated,
+            // from local.properties) — a development phone has one ABI, and
+            // every extra TDLib copy is ~30 MB of install for nothing.
+            // Unset, debug packs everything, same as release always does.
+            buildSetting("DEV_ABIS")?.let { abis ->
+                ndk.abiFilters += abis.split(",").map { it.trim() }
+            }
         }
     }
 
