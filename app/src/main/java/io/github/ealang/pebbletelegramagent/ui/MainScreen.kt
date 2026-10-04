@@ -178,16 +178,13 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
                 TAB_STATUS -> {
                     IssuesCard(issues, onNavigate = { tab = it })
                     StatusCard(state, actions)
+                    ActivityLogCard(state)
                 }
                 TAB_TELEGRAM -> {
                     TelegramAuthCard(state, actions)
                     DestinationChatCard(state, actions)
                 }
-                TAB_INDEX -> {
-                    ServerCard(state, actions)
-                    CopySettingsCard(state)
-                    ServerLogCard(state)
-                }
+                TAB_INDEX -> IndexWebhookTab(state, actions)
             }
         }
     }
@@ -242,9 +239,7 @@ private fun screenIssues(state: ScreenState): List<Issue> = buildList {
     if (state.telegramConfigured && state.telegramChatId == null) {
         add(Issue("No Telegram destination chat is set", TAB_TELEGRAM))
     }
-    if (state.serverWanted && !state.serverRunning &&
-        (state.bindFailed || state.lastStartFailure != null)
-    ) {
+    if (serverFailing(state)) {
         add(Issue("The webhook server is failing to start", TAB_INDEX))
     }
 }
@@ -267,50 +262,103 @@ private fun IssuesCard(issues: List<Issue>, onNavigate: (Int) -> Unit) {
 
 // ------------------------------- server -------------------------------
 
+/**
+ * Whether the listener is on but not actually listening for a reason the
+ * user has to act on. Same test the Issues card uses, so the tab dot, the
+ * header line and the settings card's warning icon all agree.
+ */
+private fun serverFailing(state: ScreenState): Boolean =
+    state.serverWanted && !state.serverRunning &&
+        (state.bindFailed || state.lastStartFailure != null)
+
+/**
+ * The page is about one thing, the listener, so its switch sits at the
+ * very top rather than inside a card. Off is the
+ * default and, when off, the whole state: nothing below the header is
+ * shown, because every card on this page describes a server that is not
+ * there. Turning it on reveals the rest.
+ */
 @Composable
-private fun ServerCard(state: ScreenState, actions: ScreenActions) {
+private fun IndexWebhookTab(state: ScreenState, actions: ScreenActions) {
+    val failing = serverFailing(state)
+    ServerHeader(state, failing, actions)
+    if (!state.serverWanted) return
+    CopySettingsCard(state)
+    ServerSettingsCard(state, failing, actions)
+}
+
+/**
+ * Icon as a state light, title, one status line, the switch. Problems are
+ * said here, in the warning styling, and the fix is pointed at — the
+ * settings card below carries the matching icon on its header.
+ */
+@Composable
+private fun ServerHeader(state: ScreenState, failing: Boolean, actions: ScreenActions) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            IndexIcon,
+            contentDescription = null,
+            modifier = Modifier.size(40.dp),
+            tint = when {
+                !state.serverWanted -> MaterialTheme.colorScheme.outline
+                state.serverRunning -> MaterialTheme.colorScheme.primary
+                failing -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+        Column(Modifier.weight(1f)) {
+            Text("Webhook server", style = MaterialTheme.typography.titleLarge)
+            when {
+                !state.serverWanted -> StatusLine("Off — nothing is listening.")
+                state.serverRunning ->
+                    StatusLine("Listening on 127.0.0.1:${state.port} (POST /index).")
+                // Bind failures keep the service alive and retrying, so they
+                // are a live flag on the service rather than a persisted
+                // last-failure; checked first because it is the fresher fact.
+                state.bindFailed -> WarnText(
+                    "Can't use port ${state.port} — another app may already " +
+                        "be using it. Change the port under Server settings.",
+                    MaterialTheme.typography.bodySmall,
+                )
+                state.lastStartFailure != null -> WarnText(
+                    "Last start failed: ${state.lastStartFailure}",
+                    MaterialTheme.typography.bodySmall,
+                )
+                else -> StatusLine("Starting…")
+            }
+        }
+        Switch(
+            checked = state.serverWanted,
+            onCheckedChange = { actions.toggleServer(it) },
+        )
+    }
+}
+
+/** The header's quiet status prose, for states that need no action. */
+@Composable
+private fun StatusLine(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * Set-once settings, folded away. Opens itself when something in it needs
+ * fixing, with the warning icon on its title saying why.
+ */
+@Composable
+private fun ServerSettingsCard(state: ScreenState, failing: Boolean, actions: ScreenActions) {
     // Editable copy, re-seeded only when the *saved* value changes — never
     // on the periodic refresh, which would wipe in-progress typing.
     var portText by remember(state.port) { mutableStateOf(state.port.toString()) }
 
-    SectionCard("Webhook server") {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    if (state.serverRunning) "Listening on 127.0.0.1:${state.port}"
-                    else if (state.serverWanted) "Starting…"
-                    else "Off",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    "POST /index, loopback only",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Switch(
-                checked = state.serverWanted,
-                onCheckedChange = { actions.toggleServer(it) },
-            )
-        }
-
-        state.lastStartFailure?.let {
-            WarnText("Last start failed: $it", MaterialTheme.typography.bodySmall)
-        }
-
-        // Bind failures keep the service alive and retrying, so they are a
-        // live flag on the service rather than a persisted last-failure.
-        if (state.serverWanted && !state.serverRunning && state.bindFailed) {
-            WarnText(
-                "Can't use port ${state.port} — another app may already be " +
-                    "using it. Try a different port.",
-                MaterialTheme.typography.bodySmall,
-            )
-        }
-
+    CollapsibleCard("Server settings", initiallyExpanded = failing, warn = failing) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -330,7 +378,7 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
             ) { Text("Save") }
         }
 
-        // The token itself lives in the Copy webhook settings card below —
+        // The token itself lives in the Copy webhook settings card above —
         // showing it here too was the same value twice. Only the action
         // that changes it stays.
         TextButton(onClick = actions.regenerateToken) { Text("Regenerate bearer token") }
@@ -416,20 +464,6 @@ private fun CopyBox(value: String, what: String, modifier: Modifier = Modifier) 
     )
 }
 
-/** The server's own log lives beside the server, not on the Status tab. */
-@Composable
-private fun ServerLogCard(state: ScreenState) {
-    var showLog by remember { mutableStateOf(false) }
-
-    SectionCard("Server log") {
-        TextButton(onClick = { showLog = true }) { Text("Recent activity") }
-    }
-
-    if (showLog) {
-        LogDialog("Recent activity", state.logTail) { showLog = false }
-    }
-}
-
 // ------------------------------- status -------------------------------
 
 @Composable
@@ -476,6 +510,25 @@ private fun FailedRow(item: MessageStore.Item, actions: ScreenActions) {
     }
 }
 
+
+/**
+ * The debug log records everything the app does — both front doors, the
+ * queue, Telegram delivery, the listener — so it is the app's activity
+ * log, not the server's, and it lives on the Status tab.
+ */
+@Composable
+private fun ActivityLogCard(state: ScreenState) {
+    var showLog by remember { mutableStateOf(false) }
+
+    SectionCard("Activity log") {
+        TextButton(onClick = { showLog = true }) { Text("Open the log") }
+    }
+
+    if (showLog) {
+        LogDialog("Activity log", state.logTail) { showLog = false }
+    }
+}
+
 // ------------------------------ telegram ------------------------------
 
 @Composable
@@ -497,15 +550,16 @@ private fun TelegramAuthCard(state: ScreenState, actions: ScreenActions) {
                 "Offline — messages queue until the network is back." to false
             state.telegramChatId == null ->
                 "Connected, but no destination chat is set below." to false
-            else -> {
-                val who = state.telegramAccount?.let { " as $it" } ?: ""
-                "Healthy — connected$who." to true
-            }
+            // Same shape as the destination card's "Sending to: …" line —
+            // plain text, no colour of its own. Green
+            // was a second idiom for one idea; absence of the warning is
+            // the signal that all is well.
+            else -> "Logged in as: ${state.telegramAccount ?: "unknown account"}" to true
         }
         if (fine) {
-            Text(line, style = MaterialTheme.typography.bodyMedium, color = okGreen)
+            Text(line, style = MaterialTheme.typography.bodySmall)
         } else {
-            WarnText(line)
+            WarnText(line, MaterialTheme.typography.bodySmall)
         }
 
         // Login lives in a dialog, not an always-there field: Log in
