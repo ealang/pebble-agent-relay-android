@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -186,23 +188,24 @@ private const val TAB_TELEGRAM = 1
 private const val TAB_INDEX = 2
 
 /**
- * A tab icon that gains a warning triangle to its left when the tab has a
- * setup issue. A plain [BadgedBox] dot was tried first and rejected: it is
- * tiny and lands on the top-right of the glyph — the nose of the paper
- * plane — where it reads as part of the icon rather than an alert.
+ * A tab icon that gains a red dot to its left when the tab has a setup
+ * issue. The dot, not the warning triangle the cards use: on a tab the
+ * triangle crowds the glyph, and the dot is the established tab idiom —
+ * but drawn here rather than by [BadgedBox], whose dot is smaller and
+ * fixed to the glyph's top-right, where it sat on the paper plane's nose
+ * and read as part of the icon.
  */
 @Composable
 private fun TabIcon(image: ImageVector, flagged: Boolean) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (flagged) {
-            Icon(
-                Icons.Filled.Warning,
-                contentDescription = "Needs attention",
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(14.dp),
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .background(MaterialTheme.colorScheme.error, CircleShape),
             )
         }
         Icon(image, contentDescription = null)
@@ -294,7 +297,7 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
         if (state.serverWanted && !state.serverRunning && state.bindFailed) {
             WarnText(
                 "Can't use port ${state.port} — another app may already be " +
-                    "using it. Retrying; choose a different port to fix it now.",
+                    "using it. Try a different port.",
                 MaterialTheme.typography.bodySmall,
             )
         }
