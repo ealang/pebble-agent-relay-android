@@ -11,10 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
@@ -40,7 +45,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -176,6 +186,7 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
                 }
                 TAB_INDEX -> {
                     ServerCard(state, actions)
+                    CopySettingsCard(state)
                     ServerLogCard(state)
                 }
             }
@@ -336,6 +347,82 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
             }
         }
     }
+}
+
+/**
+ * The values the Pebble app's webhook page asks for, laid out to mirror
+ * that page field for field (see its "Webhook URL" and "Headers" sections)
+ * so filling it in is pure transcription: tap a box here, paste into the
+ * matching box there.
+ */
+@Composable
+private fun CopySettingsCard(state: ScreenState) {
+    SectionCard("Copy webhook settings") {
+        Text(
+            "Mirrors the Pebble app's webhook page. Tap a value to copy it, " +
+                "then paste it into the matching field there.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+
+        FieldLabel("Webhook URL")
+        CopyBox("http://127.0.0.1:${state.port}/webhook", "webhook URL")
+
+        FieldLabel("Headers")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CopyBox("Authorization", "header name", Modifier.weight(1f))
+            CopyBox("Bearer ${state.token}", "header value", Modifier.weight(1f))
+        }
+    }
+}
+
+/** The muted little section label the Pebble webhook page uses. */
+@Composable
+private fun FieldLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/**
+ * An outlined, read-only value that copies itself when tapped. Not a text
+ * field: there is nothing to edit, and a disabled field greys the text as
+ * if it were unavailable. Single line, clipped — the clipboard gets the
+ * full string regardless, and the bearer value is secret-ish anyway.
+ */
+@Composable
+private fun CopyBox(value: String, what: String, modifier: Modifier = Modifier) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    Text(
+        value,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = modifier
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline,
+                RoundedCornerShape(8.dp),
+            )
+            .clip(RoundedCornerShape(8.dp))
+            .clickable {
+                clipboard.setText(AnnotatedString(value))
+                // Android 13+ shows its own "copied" overlay.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    Toast.makeText(
+                        context,
+                        "Copied $what.",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    )
 }
 
 /** The server's own log lives beside the server, not on the Status tab. */
