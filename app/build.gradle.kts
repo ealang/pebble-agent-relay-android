@@ -14,6 +14,26 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+/**
+ * Build-time settings, from local.properties (gitignored) or the environment,
+ * so a release machine with no checked-out properties file can supply them too.
+ */
+fun buildSetting(name: String): String? =
+    (localProps[name]?.toString() ?: System.getenv(name))?.trim()?.ifEmpty { null }
+
+// The Telegram application credentials, baked in rather than typed by the user.
+// They identify the *application*, not the account — every install of a
+// Telegram client ships the same pair, and the official clients' values are
+// published — so asking each user to register at my.telegram.org was work with
+// nothing to show for it. Not secret either: anything in an APK decompiles in
+// seconds. Gitignored only because they are a personal registration that
+// Telegram can revoke if abused.
+//
+// Absent, the build still succeeds and the app says it has no credentials:
+// a clone without a pair must stay buildable.
+val telegramApiId = buildSetting("TELEGRAM_API_ID")?.toIntOrNull() ?: 0
+val telegramApiHash = buildSetting("TELEGRAM_API_HASH").orEmpty()
+
 android {
     namespace = "io.github.ealang.pebbletelegramwebhook"
     compileSdk = 35
@@ -24,6 +44,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+
+        buildConfigField("int", "TELEGRAM_API_ID", "$telegramApiId")
+        buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramApiHash\"")
     }
 
     localProps["DEBUG_KEYSTORE"]?.toString()?.let { path ->
@@ -54,6 +77,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Off by default since AGP 8; the Telegram credentials above need it.
+        buildConfig = true
     }
 
     testOptions {

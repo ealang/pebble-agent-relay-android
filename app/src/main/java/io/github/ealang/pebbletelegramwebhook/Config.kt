@@ -43,20 +43,6 @@ class Config(context: Context) {
         get() = prefs.getBoolean(KEY_ENABLED, false)
         set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
 
-    /**
-     * Telegram application credentials, from my.telegram.org. These identify
-     * the *application*, not the user — every install of a distributed
-     * Telegram client ships the same pair compiled into the binary, and the
-     * official clients' values are public.
-     */
-    var telegramApiId: Int?
-        get() = prefs.getInt(KEY_TG_API_ID, 0).takeIf { it > 0 }
-        set(value) = prefs.edit().putInt(KEY_TG_API_ID, value ?: 0).apply()
-
-    var telegramApiHash: String?
-        get() = prefs.getString(KEY_TG_API_HASH, null)?.ifBlank { null }
-        set(value) = prefs.edit().putString(KEY_TG_API_HASH, value?.trim() ?: "").apply()
-
     /** The one destination chat, entered as a numeric id. */
     var telegramChatId: Long?
         get() = prefs.getLong(KEY_TG_CHAT, 0L).takeIf { it != 0L }
@@ -108,8 +94,6 @@ class Config(context: Context) {
         private const val KEY_TOKEN = "token"
         private const val KEY_ENABLED = "enabled"
         private const val KEY_START_FAILURE = "last_start_failure"
-        private const val KEY_TG_API_ID = "telegram_api_id"
-        private const val KEY_TG_API_HASH = "telegram_api_hash"
         private const val KEY_TG_CHAT = "telegram_chat_id"
         private const val KEY_TG_DB_KEY = "telegram_db_key"
         private const val KEY_TG_SIGNATURE = "telegram_signature"

@@ -70,7 +70,6 @@ class MainActivity : ComponentActivity() {
             savePort = ::savePort,
             copyToken = ::copyToken,
             regenerateToken = ::regenerateToken,
-            saveTelegramApp = ::saveTelegramApp,
             submitAuthInput = { TelegramEngine.submitAuthInput(it) },
             saveChatId = ::saveChatId,
             testChatId = ::testChatId,
@@ -140,8 +139,6 @@ class MainActivity : ComponentActivity() {
             logTail = WebhookService.logTail(this, LOG_DIALOG_LINES),
             telegramStage = TelegramEngine.stage,
             telegramStatus = TelegramEngine.statusLine(),
-            telegramApiId = config.telegramApiId,
-            telegramApiHash = config.telegramApiHash,
             telegramChatId = config.telegramChatId,
             telegramSignature = config.telegramSignature,
         )
@@ -197,25 +194,6 @@ class MainActivity : ComponentActivity() {
         WebhookService.stop(this)
         main.postDelayed({ WebhookService.start(this) }, 300)
         bumpSoon()
-    }
-
-    private fun saveTelegramApp(apiId: String, apiHash: String) {
-        val id = apiId.trim().toIntOrNull()
-        if (id == null || id <= 0) {
-            toast("API ID must be a positive number.")
-            return
-        }
-        val config = Config(this)
-        val alreadyRunning = TelegramEngine.stage != TelegramEngine.Stage.OFF
-        config.telegramApiId = id
-        config.telegramApiHash = apiHash
-        if (alreadyRunning) {
-            // TDLib takes its parameters exactly once per client.
-            toast("Saved — restart the app to apply the new credentials.")
-        } else {
-            TelegramEngine.ensureStarted(this)
-        }
-        bump()
     }
 
     private fun saveChatId(text: String) {

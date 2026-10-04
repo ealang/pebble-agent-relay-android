@@ -45,7 +45,6 @@ class ScreenActions(
     val savePort: (text: String) -> Unit,
     val copyToken: () -> Unit,
     val regenerateToken: () -> Unit,
-    val saveTelegramApp: (apiId: String, apiHash: String) -> Unit,
     val submitAuthInput: (String) -> Unit,
     val saveChatId: (text: String) -> Unit,
     val testChatId: (onResult: (String) -> Unit) -> Unit,
@@ -70,8 +69,6 @@ class ScreenState(
     val logTail: List<String>,
     val telegramStage: TelegramEngine.Stage,
     val telegramStatus: String,
-    val telegramApiId: Int?,
-    val telegramApiHash: String?,
     val telegramChatId: Long?,
     val telegramSignature: String,
 )
@@ -254,12 +251,6 @@ private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
     // Each editable copy is keyed on its saved value: it re-seeds when a
     // save lands (including from elsewhere), but survives the periodic
     // refresh untouched while the user is typing.
-    var apiIdText by remember(state.telegramApiId) {
-        mutableStateOf(state.telegramApiId?.toString() ?: "")
-    }
-    var apiHashText by remember(state.telegramApiHash) {
-        mutableStateOf(state.telegramApiHash ?: "")
-    }
     var authInput by remember { mutableStateOf("") }
     var chatIdText by remember(state.telegramChatId) {
         mutableStateOf(state.telegramChatId?.toString() ?: "")
@@ -308,28 +299,9 @@ private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
             }
         }
 
-        HorizontalDivider()
-
-        Text("Application (my.telegram.org)", style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(
-            value = apiIdText,
-            onValueChange = { apiIdText = it },
-            label = { Text("API ID") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = apiHashText,
-            onValueChange = { apiHashText = it },
-            label = { Text("API hash") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        TextButton(
-            onClick = { actions.saveTelegramApp(apiIdText, apiHashText) },
-            enabled = apiIdText.isNotBlank() && apiHashText.isNotBlank(),
-        ) { Text("Save & connect") }
+        // No API ID/hash fields: the pair is baked in at build time. It
+        // identifies the app rather than the account, so every install
+        // shares one pair and there is nothing for the user to decide.
 
         HorizontalDivider()
 
