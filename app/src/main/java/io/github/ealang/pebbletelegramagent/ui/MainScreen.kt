@@ -13,9 +13,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -107,10 +108,16 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
     }
 
     // Tab layout: one concern per tab — Status (queue
-    // counters, failures, log), Telegram (account + destination), Index (the
-    // webhook server the Pebble index talks to). Survives rotation via
-    // rememberSaveable, same shell pattern throughout.
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // counters, failures, setup issues), Telegram (account + destination),
+    // Index webhook (the server the Pebble index talks to). Survives
+    // rotation via rememberSaveable, same shell pattern throughout.
+    var tab by rememberSaveable { mutableIntStateOf(TAB_STATUS) }
+
+    // Setup issues only — states the user has to fix once, not transient
+    // ones like being offline, which resolve themselves and would make the
+    // card (and the tab dots) flap.
+    val issues = screenIssues(state)
+    val flaggedTabs = issues.map { it.tab }.toSet()
 
     Scaffold(
         // The app draws edge to edge, so the keyboard is an inset like any
@@ -123,22 +130,22 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = tab == 0,
-                    onClick = { tab = 0 },
+                    selected = tab == TAB_STATUS,
+                    onClick = { tab = TAB_STATUS },
                     icon = { Icon(Icons.Filled.Info, contentDescription = null) },
                     label = { Text("Status") },
                 )
                 NavigationBarItem(
-                    selected = tab == 1,
-                    onClick = { tab = 1 },
-                    icon = { Icon(Icons.Filled.Send, contentDescription = null) },
+                    selected = tab == TAB_TELEGRAM,
+                    onClick = { tab = TAB_TELEGRAM },
+                    icon = { TabIcon(TelegramIcon, TAB_TELEGRAM in flaggedTabs) },
                     label = { Text("Telegram") },
                 )
                 NavigationBarItem(
-                    selected = tab == 2,
-                    onClick = { tab = 2 },
-                    icon = { Icon(Icons.Filled.Share, contentDescription = null) },
-                    label = { Text("Index") },
+                    selected = tab == TAB_INDEX,
+                    onClick = { tab = TAB_INDEX },
+                    icon = { TabIcon(IndexIcon, TAB_INDEX in flaggedTabs) },
+                    label = { Text("Index webhook") },
                 )
             }
         },
@@ -156,9 +163,76 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (tab) {
-                0 -> StatusCard(state, actions)
-                1 -> TelegramCard(state, actions)
-                2 -> ServerCard(state, actions)
+                TAB_STATUS -> {
+                    IssuesCard(issues, onNavigate = { tab = it })
+                    StatusCard(state, actions)
+                }
+                TAB_TELEGRAM -> {
+                    TelegramAuthCard(state, actions)
+                    DestinationChatCard(state, actions)
+                }
+                TAB_INDEX -> {
+                    ServerCard(state, actions)
+                    ServerLogCard(state)
+                }
+            }
+        }
+    }
+}
+
+private const val TAB_STATUS = 0
+private const val TAB_TELEGRAM = 1
+private const val TAB_INDEX = 2
+
+/** A tab icon with the attention dot when its tab has a setup issue. */
+@Composable
+private fun TabIcon(image: ImageVector, flagged: Boolean) {
+    BadgedBox(badge = { if (flagged) Badge() }) {
+        Icon(image, contentDescription = null)
+    }
+}
+
+// ------------------------------- issues -------------------------------
+
+/** A setup problem, worded for the user, pointing at the tab that fixes it. */
+private class Issue(val text: String, val tab: Int)
+
+/**
+ * The conditions the user must act on before messages can flow. Transient
+ * states — offline, a chat search failing — are deliberately absent: they
+ * fix themselves, and an alert nobody can act on teaches people to ignore
+ * the card.
+ */
+private fun screenIssues(state: ScreenState): List<Issue> = buildList {
+    if (state.telegramConfigured &&
+        state.telegramHealth == TelegramEngine.Health.NOT_AUTHENTICATED
+    ) {
+        add(Issue("Telegram is logged out", TAB_TELEGRAM))
+    }
+    if (state.telegramConfigured && state.telegramChatId == null) {
+        add(Issue("No Telegram destination chat is set", TAB_TELEGRAM))
+    }
+    if (state.serverWanted && !state.serverRunning && state.lastStartFailure != null) {
+        add(Issue("The webhook server is failing to start", TAB_INDEX))
+    }
+}
+
+/** Hidden entirely when there is nothing wrong; each row jumps to the fix. */
+@Composable
+private fun IssuesCard(issues: List<Issue>, onNavigate: (Int) -> Unit) {
+    if (issues.isEmpty()) return
+    SectionCard("Issues") {
+        issues.forEach { issue ->
+            TextButton(
+                onClick = { onNavigate(issue.tab) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    issue.text,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Start,
+                )
             }
         }
     }
@@ -173,7 +247,7 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
     var portText by remember(state.port) { mutableStateOf(state.port.toString()) }
     var showToken by remember { mutableStateOf(false) }
 
-    SectionCard("Server") {
+    SectionCard("Webhook server") {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -241,26 +315,32 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
     }
 }
 
-// ------------------------------- status -------------------------------
-
+/** The server's own log lives beside the server, not on the Status tab. */
 @Composable
-private fun StatusCard(state: ScreenState, actions: ScreenActions) {
+private fun ServerLogCard(state: ScreenState) {
     var showLog by remember { mutableStateOf(false) }
 
-    SectionCard("Status") {
-        KeyValue("Sent since server up", state.sentSinceUp.toString())
-        KeyValue("Pending", state.pendingCount.toString())
-        KeyValue("Failed", state.failedItems.size.toString())
-
-        state.failedItems.forEach { item ->
-            FailedRow(item, actions)
-        }
-
+    SectionCard("Server log") {
         TextButton(onClick = { showLog = true }) { Text("Recent activity") }
     }
 
     if (showLog) {
         LogDialog("Recent activity", state.logTail) { showLog = false }
+    }
+}
+
+// ------------------------------- status -------------------------------
+
+@Composable
+private fun StatusCard(state: ScreenState, actions: ScreenActions) {
+    SectionCard("Message counts") {
+        KeyValue("Sent messages", state.sentSinceUp.toString())
+        KeyValue("Pending messages", state.pendingCount.toString())
+        KeyValue("Failed messages", state.failedItems.size.toString())
+
+        state.failedItems.forEach { item ->
+            FailedRow(item, actions)
+        }
     }
 }
 
@@ -298,8 +378,8 @@ private fun FailedRow(item: MessageStore.Item, actions: ScreenActions) {
 // ------------------------------ telegram ------------------------------
 
 @Composable
-private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
-    SectionCard("Telegram") {
+private fun TelegramAuthCard(state: ScreenState, actions: ScreenActions) {
+    SectionCard("Telegram authorization") {
         // One line saying what state we are in and what to do about it —
         // never which step of a login is pending, which is the dialog's
         // job. Offline claims nothing else: an unreachable server cannot
@@ -363,9 +443,12 @@ private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
         // No API ID/hash fields: the pair is baked in at build time. It
         // identifies the app rather than the account, so every install
         // shares one pair and there is nothing for the user to decide.
+    }
+}
 
-        HorizontalDivider()
-
+@Composable
+private fun DestinationChatCard(state: ScreenState, actions: ScreenActions) {
+    SectionCard("Destination chat") {
         // The destination, named rather than numbered. The id field and
         // its Test button are gone: an id that came from a picker needs
         // no testing, and one nobody can mistype needs no validating. The

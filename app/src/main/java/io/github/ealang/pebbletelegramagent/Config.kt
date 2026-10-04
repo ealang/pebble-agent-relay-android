@@ -61,10 +61,11 @@ class Config(context: Context) {
     /**
      * Signature line appended to forwarded messages, on its own line. Read
      * at pickup, so an edit applies to already-queued items too. Blank
-     * appends nothing.
+     * appends nothing. Defaults until first saved; saving blank sticks,
+     * because an explicitly cleared signature must not resurrect itself.
      */
     var telegramSignature: String
-        get() = prefs.getString(KEY_TG_SIGNATURE, "") ?: ""
+        get() = prefs.getString(KEY_TG_SIGNATURE, DEFAULT_SIGNATURE) ?: ""
         set(value) = prefs.edit().putString(KEY_TG_SIGNATURE, value.trim()).apply()
 
     /**
@@ -107,5 +108,6 @@ class Config(context: Context) {
         private const val KEY_TG_CHAT_TITLE = "telegram_chat_title"
         private const val KEY_TG_DB_KEY = "telegram_db_key"
         private const val KEY_TG_SIGNATURE = "telegram_signature"
+        private const val DEFAULT_SIGNATURE = "[Sent from my Pebble]"
     }
 }
