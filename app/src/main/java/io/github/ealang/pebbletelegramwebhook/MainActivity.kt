@@ -78,8 +78,15 @@ class MainActivity : ComponentActivity() {
             submitAuthInput = { TelegramEngine.submitAuthInput(it) },
             logOut = { TelegramEngine.logOut() },
             restartLogin = { TelegramEngine.restartLogin() },
-            saveChatId = ::saveChatId,
-            testChatId = ::testChatId,
+            searchChats = { query, onResult -> TelegramEngine.searchChats(query, onResult) },
+            pickChat = { hit ->
+                Config(this).apply {
+                    telegramChatId = hit.id
+                    telegramChatTitle = hit.title
+                }
+                toast("Sending to ${hit.title}")
+                bump()
+            },
             saveSignature = ::saveSignature,
             retryFailed = { name ->
                 WebhookService.retryFailed(this, name)
@@ -153,6 +160,7 @@ class MainActivity : ComponentActivity() {
             telegramAccount = TelegramEngine.account,
             telegramConfigured = TelegramEngine.configured,
             telegramChatId = config.telegramChatId,
+            telegramChatTitle = config.telegramChatTitle,
             telegramSignature = config.telegramSignature,
         )
     }
@@ -207,29 +215,6 @@ class MainActivity : ComponentActivity() {
         WebhookService.stop(this)
         main.postDelayed({ WebhookService.start(this) }, 300)
         bumpSoon()
-    }
-
-    private fun saveChatId(text: String) {
-        val id = text.trim().toLongOrNull()
-        if (text.isNotBlank() && id == null) {
-            toast("Chat ID must be a number (negative for groups).")
-            return
-        }
-        Config(this).telegramChatId = id
-        toast(if (id == null) "Chat ID cleared." else "Chat ID saved.")
-        bump()
-    }
-
-    private fun testChatId(onResult: (String) -> Unit) {
-        val id = Config(this).telegramChatId
-        if (id == null) {
-            onResult("Failed: no chat ID saved.")
-            return
-        }
-        TelegramEngine.checkChat(id) { result ->
-            onResult(result)
-            bump()
-        }
     }
 
     private fun saveSignature(text: String) {

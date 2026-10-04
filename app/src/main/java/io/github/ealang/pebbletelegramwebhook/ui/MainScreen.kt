@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -31,11 +32,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import io.github.ealang.pebbletelegramwebhook.pipeline.MessageStore
 import io.github.ealang.pebbletelegramwebhook.telegram.TelegramEngine
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * Everything the screen can do to the world. The screen itself never touches
@@ -50,8 +54,8 @@ class ScreenActions(
     val submitAuthInput: (String) -> Unit,
     val logOut: () -> Unit,
     val restartLogin: () -> Unit,
-    val saveChatId: (text: String) -> Unit,
-    val testChatId: (onResult: (String) -> Unit) -> Unit,
+    val searchChats: (query: String, onResult: (Result<List<TelegramEngine.ChatHit>>) -> Unit) -> Unit,
+    val pickChat: (TelegramEngine.ChatHit) -> Unit,
     val saveSignature: (String) -> Unit,
     val retryFailed: (name: String) -> Unit,
     val discardFailed: (name: String) -> Unit,
@@ -77,6 +81,7 @@ class ScreenState(
     val telegramAccount: String?,
     val telegramConfigured: Boolean,
     val telegramChatId: Long?,
+    val telegramChatTitle: String,
     val telegramSignature: String,
 )
 
@@ -255,14 +260,6 @@ private fun FailedRow(item: MessageStore.Item, actions: ScreenActions) {
 
 @Composable
 private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
-    // Each editable copy is keyed on its saved value: it re-seeds when a
-    // save lands (including from elsewhere), but survives the periodic
-    // refresh untouched while the user is typing.
-    var chatIdText by remember(state.telegramChatId) {
-        mutableStateOf(state.telegramChatId?.toString() ?: "")
-    }
-    var chatCheckResult by remember { mutableStateOf<String?>(null) }
-
     SectionCard("Telegram") {
         // One line saying what state we are in and what to do about it —
         // never which step of a login is pending, which is the dialog's
@@ -330,29 +327,31 @@ private fun TelegramCard(state: ScreenState, actions: ScreenActions) {
 
         HorizontalDivider()
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = chatIdText,
-                onValueChange = { chatIdText = it },
-                label = { Text("Chat ID") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = { actions.saveChatId(chatIdText) }) { Text("Save") }
-            TextButton(
-                onClick = {
-                    chatCheckResult = "Checking…"
-                    actions.testChatId { chatCheckResult = it }
+        // The destination, named rather than numbered. The id field and
+        // its Test button are gone: an id that came from a picker needs
+        // no testing, and one nobody can mistype needs no validating. The
+        // picker is only offered when connected — it is a live server
+        // search.
+        Text(
+            state.telegramChatId?.let { id ->
+                "Sending to: " + state.telegramChatTitle.ifBlank { "chat $id" }
+            } ?: "No destination chat chosen.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        var chatPicker by remember { mutableStateOf(false) }
+        TextButton(
+            enabled = state.telegramStage == TelegramEngine.Stage.READY,
+            onClick = { chatPicker = true },
+        ) { Text(if (state.telegramChatId == null) "Choose chat" else "Change chat") }
+        if (chatPicker) {
+            ChatPickerDialog(
+                search = actions.searchChats,
+                onPick = { hit ->
+                    actions.pickChat(hit)
+                    chatPicker = false
                 },
-                enabled = state.telegramChatId != null,
-            ) { Text("Test") }
-        }
-        chatCheckResult?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall)
+                onDismiss = { chatPicker = false },
+            )
         }
 
         SignatureRow(state, actions)
@@ -456,3 +455,92 @@ private fun LoginDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
     )
 }
+
+/**
+ * Pick the destination chat by name. Opens blank on purpose: there is no
+ * recents list to show, because nothing in this app keeps a chat list —
+ * the results are whatever the server just said, merged with nothing.
+ *
+ * Search-as-you-type over a network call needs two guards, both supplied
+ * by [LaunchedEffect] keyed on the query rather than by hand. Typing a
+ * letter cancels the previous effect, so the debounce below only elapses
+ * once typing pauses; and a search already in flight has its continuation
+ * abandoned, so a slow early response cannot overwrite a fast later one.
+ * Getting that wrong shows the results for "mu" above the results for
+ * "mum", which is the classic form of this bug.
+ */
+@Composable
+private fun ChatPickerDialog(
+    search: (String, (Result<List<TelegramEngine.ChatHit>>) -> Unit) -> Unit,
+    onPick: (TelegramEngine.ChatHit) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var hits by remember { mutableStateOf<List<TelegramEngine.ChatHit>>(emptyList()) }
+    var note by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(query) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            hits = emptyList()
+            note = null
+            return@LaunchedEffect
+        }
+        delay(SEARCH_DEBOUNCE_MS)
+        note = "Searching…"
+        val found = suspendCancellableCoroutine { cont ->
+            search(trimmed) { cont.resume(it) }
+        }
+        hits = found.getOrDefault(emptyList())
+        note = found.fold(
+            onSuccess = { if (it.isEmpty()) "No chat matches that name." else null },
+            onFailure = { "Search failed: ${it.message}" },
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Choose destination chat") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Say what is being searched: the bare field reads like it
+                // might search the whole of Telegram, and picking an
+                // unknown stranger as the destination is exactly the
+                // mistake worth making impossible to worry about.
+                Text(
+                    "Searches your existing Telegram chats by name.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                Column(
+                    Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState()),
+                ) {
+                    hits.forEach { hit ->
+                        TextButton(
+                            onClick = { onPick(hit) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                hit.title,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.Start,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/** Long enough to swallow a burst of typing, short enough to feel live. */
+private const val SEARCH_DEBOUNCE_MS = 300L

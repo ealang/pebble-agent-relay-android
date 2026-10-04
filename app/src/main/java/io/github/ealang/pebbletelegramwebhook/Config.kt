@@ -53,10 +53,19 @@ class Config(context: Context) {
         get() = prefs.getBoolean(KEY_ENABLED, false)
         set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
 
-    /** The one destination chat, entered as a numeric id. */
+    /** The one destination chat, chosen from the picker. */
     var telegramChatId: Long?
         get() = prefs.getLong(KEY_TG_CHAT, 0L).takeIf { it != 0L }
         set(value) = prefs.edit().putLong(KEY_TG_CHAT, value ?: 0L).apply()
+
+    /**
+     * The chosen chat's title, for display only — the id is what sends.
+     * Saved at pick time rather than resolved at render time, so the card
+     * can name the destination without a TDLib round-trip.
+     */
+    var telegramChatTitle: String
+        get() = prefs.getString(KEY_TG_CHAT_TITLE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_TG_CHAT_TITLE, value).apply()
 
     /**
      * Signature line appended to forwarded messages, on its own line. Read
@@ -112,6 +121,7 @@ class Config(context: Context) {
         private const val KEY_ENABLED = "enabled"
         private const val KEY_START_FAILURE = "last_start_failure"
         private const val KEY_TG_CHAT = "telegram_chat_id"
+        private const val KEY_TG_CHAT_TITLE = "telegram_chat_title"
         private const val KEY_TG_DB_KEY = "telegram_db_key"
         private const val KEY_TG_SIGNATURE = "telegram_signature"
     }
