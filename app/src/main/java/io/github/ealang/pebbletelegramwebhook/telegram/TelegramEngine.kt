@@ -29,12 +29,40 @@ object TelegramEngine {
 
     enum class Stage { OFF, STARTING, PHONE, CODE, PASSWORD, READY, CLOSED }
 
+    /**
+     * The classification the UI paints: three states, not seven. Everything
+     * short of a logged-in client — no credentials, login mid-flight,
+     * session closed or revoked — collapses to NOT_AUTHENTICATED, because
+     * to the user they are one condition: delivery is down until they act.
+     * OFFLINE is the one non-failure — nothing to fix, TDLib reconnects on
+     * its own (helped along by the network kick below). No active probe
+     * anywhere: TDLib pushes every auth and connection transition,
+     * including a server-side logout the moment it reconnects and finds
+     * the session dead, so this is always current for free. The cost of
+     * deriving rather than testing: a brief NOT_AUTHENTICATED flash at
+     * client boot before the stored session reports Ready.
+     */
+    enum class Health { HEALTHY, OFFLINE, NOT_AUTHENTICATED }
+
+    val health: Health
+        get() = when {
+            stage != Stage.READY -> Health.NOT_AUTHENTICATED
+            waitingForNetwork -> Health.OFFLINE
+            else -> Health.HEALTHY
+        }
+
+    /** Main-thread, like all state here; from UpdateConnectionState. */
+    private var waitingForNetwork = false
+
     private val main = Handler(Looper.getMainLooper())
     private var appContext: Context? = null
     private var client: Client? = null
     private var authState: TdApi.AuthorizationState? = null
     private var connectionLabel: String? = null
     private var accountLabel: String? = null
+
+    /** Who we are logged in as, once GetMe has answered; null before that. */
+    val account: String? get() = accountLabel
 
     /**
      * The last thing that went wrong, shown under the status line until the
@@ -289,6 +317,7 @@ object TelegramEngine {
             is TdApi.UpdateMessageSendSucceeded -> onDeliveryEvent()
             is TdApi.UpdateMessageSendFailed -> onDeliveryEvent()
             is TdApi.UpdateConnectionState -> {
+                waitingForNetwork = update.state is TdApi.ConnectionStateWaitingForNetwork
                 connectionLabel = when (update.state) {
                     is TdApi.ConnectionStateReady -> "connected"
                     is TdApi.ConnectionStateConnecting -> "connecting"
