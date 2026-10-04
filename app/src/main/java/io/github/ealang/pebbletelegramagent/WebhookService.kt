@@ -105,6 +105,7 @@ class WebhookService : Service() {
         server = null
         stopPipeline()
         running = false
+        bindFailed = false
         sentSinceUp = 0
         sendBroadcast(Intent(ACTION_STATE_CHANGED).setPackage(packageName))
         Log.i(TAG, "Stopped")
@@ -217,6 +218,7 @@ class WebhookService : Service() {
             instance.start(SOCKET_READ_TIMEOUT_MS, false)
             server = instance
             running = true
+            bindFailed = false
             retryDelayMs = INITIAL_RETRY_MS
             debugLog?.record("listening on ${WebhookServer.BIND}:$port")
             baseText = "Listening on ${WebhookServer.BIND}:$port"
@@ -227,6 +229,7 @@ class WebhookService : Service() {
                 e.message ?: e::class.java.simpleName,
             )
             baseText = "Waiting to bind ${WebhookServer.BIND}:$port"
+            bindFailed = true
             main.postDelayed(retry, retryDelayMs)
             retryDelayMs = (retryDelayMs * 2).coerceAtMost(MAX_RETRY_MS)
         }
@@ -347,6 +350,16 @@ class WebhookService : Service() {
         /** Messages confirmed done since the service came up — the UI counter. */
         @Volatile
         var sentSinceUp: Int = 0
+            private set
+
+        /**
+         * The last bind attempt failed and a retry is pending. Distinct from
+         * [Config.lastStartFailure], which records the service being refused
+         * outright: a bind failure keeps the service alive and retrying, so
+         * it lives here with the process rather than in prefs.
+         */
+        @Volatile
+        var bindFailed: Boolean = false
             private set
 
         /**

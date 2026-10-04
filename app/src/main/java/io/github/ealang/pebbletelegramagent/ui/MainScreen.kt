@@ -13,9 +13,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -81,6 +81,7 @@ class ScreenState(
     val port: Int,
     val token: String,
     val lastStartFailure: String?,
+    val bindFailed: Boolean,
     val sentSinceUp: Int,
     val pendingCount: Int,
     val failedItems: List<MessageStore.Item>,
@@ -145,7 +146,7 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
                     selected = tab == TAB_INDEX,
                     onClick = { tab = TAB_INDEX },
                     icon = { TabIcon(IndexIcon, TAB_INDEX in flaggedTabs) },
-                    label = { Text("Index webhook") },
+                    label = { Text("Index Webhook") },
                 )
             }
         },
@@ -184,10 +185,26 @@ private const val TAB_STATUS = 0
 private const val TAB_TELEGRAM = 1
 private const val TAB_INDEX = 2
 
-/** A tab icon with the attention dot when its tab has a setup issue. */
+/**
+ * A tab icon that gains a warning triangle to its left when the tab has a
+ * setup issue. A plain [BadgedBox] dot was tried first and rejected: it is
+ * tiny and lands on the top-right of the glyph — the nose of the paper
+ * plane — where it reads as part of the icon rather than an alert.
+ */
 @Composable
 private fun TabIcon(image: ImageVector, flagged: Boolean) {
-    BadgedBox(badge = { if (flagged) Badge() }) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (flagged) {
+            Icon(
+                Icons.Filled.Warning,
+                contentDescription = "Needs attention",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(14.dp),
+            )
+        }
         Icon(image, contentDescription = null)
     }
 }
@@ -212,7 +229,9 @@ private fun screenIssues(state: ScreenState): List<Issue> = buildList {
     if (state.telegramConfigured && state.telegramChatId == null) {
         add(Issue("No Telegram destination chat is set", TAB_TELEGRAM))
     }
-    if (state.serverWanted && !state.serverRunning && state.lastStartFailure != null) {
+    if (state.serverWanted && !state.serverRunning &&
+        (state.bindFailed || state.lastStartFailure != null)
+    ) {
         add(Issue("The webhook server is failing to start", TAB_INDEX))
     }
 }
@@ -227,12 +246,7 @@ private fun IssuesCard(issues: List<Issue>, onNavigate: (Int) -> Unit) {
                 onClick = { onNavigate(issue.tab) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    issue.text,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Start,
-                )
+                Row(Modifier.weight(1f)) { WarnText(issue.text) }
             }
         }
     }
@@ -272,10 +286,16 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
         }
 
         state.lastStartFailure?.let {
-            Text(
-                "Last start failed: $it",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
+            WarnText("Last start failed: $it", MaterialTheme.typography.bodySmall)
+        }
+
+        // Bind failures keep the service alive and retrying, so they are a
+        // live flag on the service rather than a persisted last-failure.
+        if (state.serverWanted && !state.serverRunning && state.bindFailed) {
+            WarnText(
+                "Can't use port ${state.port} — another app may already be " +
+                    "using it. Retrying; choose a different port to fix it now.",
+                MaterialTheme.typography.bodySmall,
             )
         }
 
@@ -401,11 +421,11 @@ private fun TelegramAuthCard(state: ScreenState, actions: ScreenActions) {
                 "Healthy — connected$who." to true
             }
         }
-        Text(
-            line,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (fine) okGreen else MaterialTheme.colorScheme.error,
-        )
+        if (fine) {
+            Text(line, style = MaterialTheme.typography.bodyMedium, color = okGreen)
+        } else {
+            WarnText(line)
+        }
 
         // Login lives in a dialog, not an always-there field: Log in
         // whenever anything short of a session exists — a stale login
