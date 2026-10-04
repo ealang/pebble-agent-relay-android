@@ -71,7 +71,6 @@ import kotlin.coroutines.resume
 class ScreenActions(
     val toggleServer: (wantOn: Boolean) -> Unit,
     val savePort: (text: String) -> Unit,
-    val copyToken: () -> Unit,
     val regenerateToken: () -> Unit,
     val submitAuthInput: (String) -> Unit,
     val logOut: () -> Unit,
@@ -273,7 +272,6 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
     // Editable copy, re-seeded only when the *saved* value changes — never
     // on the periodic refresh, which would wipe in-progress typing.
     var portText by remember(state.port) { mutableStateOf(state.port.toString()) }
-    var showToken by remember { mutableStateOf(false) }
 
     SectionCard("Webhook server") {
         Row(
@@ -332,20 +330,10 @@ private fun ServerCard(state: ScreenState, actions: ScreenActions) {
             ) { Text("Save") }
         }
 
-        Column {
-            Text("Bearer token", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                if (showToken) state.token else "•".repeat(24),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { showToken = !showToken }) {
-                    Text(if (showToken) "Hide" else "Show")
-                }
-                TextButton(onClick = actions.copyToken) { Text("Copy") }
-                TextButton(onClick = actions.regenerateToken) { Text("Regenerate") }
-            }
-        }
+        // The token itself lives in the Copy webhook settings card below —
+        // showing it here too was the same value twice. Only the action
+        // that changes it stays.
+        TextButton(onClick = actions.regenerateToken) { Text("Regenerate bearer token") }
     }
 }
 
@@ -403,6 +391,9 @@ private fun CopyBox(value: String, what: String, modifier: Modifier = Modifier) 
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = MaterialTheme.typography.bodyMedium,
+        // The same theme slot button text draws from — the app-wide "this
+        // is tappable" color, not a hardcoded value.
+        color = MaterialTheme.colorScheme.primary,
         modifier = modifier
             .border(
                 1.dp,

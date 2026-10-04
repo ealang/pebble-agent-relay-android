@@ -1,8 +1,6 @@
 package io.github.ealang.pebbletelegramagent
 
 import android.content.BroadcastReceiver
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -73,7 +71,6 @@ class MainActivity : ComponentActivity() {
         val actions = ScreenActions(
             toggleServer = ::toggleServer,
             savePort = ::savePort,
-            copyToken = ::copyToken,
             regenerateToken = ::regenerateToken,
             submitAuthInput = { TelegramEngine.submitAuthInput(it) },
             logOut = { TelegramEngine.logOut() },
@@ -201,13 +198,6 @@ class MainActivity : ComponentActivity() {
         toast("New token generated.")
         bounceServerIfRunning()
         bump()
-    }
-
-    private fun copyToken() {
-        val clip = ClipData.newPlainText("webhook token", Config(this).token)
-        getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
-        // Android 13+ shows its own "copied" overlay; a toast would double up.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) toast("Token copied.")
     }
 
     /** The server reads port and token at bind time; a restart applies them. */
