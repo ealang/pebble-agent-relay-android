@@ -41,7 +41,7 @@ none with data exposure:
   `coredevices.coreapp` with auto-selection disabled; every call is checked
   at the Binder entry point (the calling uid must belong to CoreApp *and*
   carry its pinned signing certificate); and only the companion watchapp's
-  UUID is accepted. Rejected callers get the protocol's refusal shape and
+  known UUIDs are accepted. Rejected callers get the protocol's refusal shape and
   learn nothing.
 - The boot receiver is not exported; the system delivers its protected
   broadcasts regardless.
@@ -58,5 +58,5 @@ nor the logged-in Telegram session leave the sandbox via backup or
 device-migration tools.
 
 **Trust boundaries.** CoreApp necessarily sees every transcript — it is the
-transport from the watch. Any watchapp on your own watch could reuse the
+transport from the watch. Any watchapp on your own watch could reuse a
 companion UUID; the attacker in that scenario is you.

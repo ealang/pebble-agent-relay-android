@@ -9,8 +9,14 @@ import java.util.UUID
  */
 object PebbleContract {
 
-    /** Our watchapp's UUID (package.json `pebble.uuid`). Messages from any other watchapp are Nacked. */
-    val WATCHAPP_UUID: UUID = UUID.fromString("c0b48501-a0da-4fbb-9013-a4ea68dc6165")
+    /**
+     * The watchapp UUIDs we accept (each build's package.json `pebble.uuid`).
+     * Messages from any other watchapp are Nacked.
+     */
+    val WATCHAPP_UUIDS: Set<UUID> = setOf(
+        UUID.fromString("c0b48501-a0da-4fbb-9013-a4ea68dc6165"),
+        UUID.fromString("641826b9-9512-48d3-8354-332fc90568bd"),
+    )
 
     /** The only phone app allowed to deliver watch messages to us. */
     const val COREAPP_PACKAGE = "coredevices.coreapp"

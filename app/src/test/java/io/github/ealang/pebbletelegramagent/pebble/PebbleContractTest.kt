@@ -4,6 +4,7 @@ import io.rebble.pebblekit2.common.model.PebbleDictionaryItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.util.UUID
 
 class PebbleContractTest {
 
@@ -33,6 +34,17 @@ class PebbleContractTest {
             extractTranscript(
                 mapOf(10001u to PebbleDictionaryItem.Text("hello")),
             ),
+        )
+    }
+
+    @Test
+    fun `both watchapp builds are accepted`() {
+        assertEquals(
+            setOf(
+                UUID.fromString("c0b48501-a0da-4fbb-9013-a4ea68dc6165"),
+                UUID.fromString("641826b9-9512-48d3-8354-332fc90568bd"),
+            ),
+            PebbleContract.WATCHAPP_UUIDS,
         )
     }
 
