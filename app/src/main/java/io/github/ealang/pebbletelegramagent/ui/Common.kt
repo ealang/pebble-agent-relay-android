@@ -37,9 +37,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** The one-pager is a stack of these. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SectionCard(title: String, content: @Composable () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+fun SectionCard(
+    title: String,
+    onLongClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    // The whole card is the long-press target: a single text line is too
+    // small a thumb target for a hidden gesture.
+    val modifier = if (onLongClick == null) Modifier.fillMaxWidth()
+    else Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = onLongClick)
+    Card(modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -131,16 +140,12 @@ fun WarnText(text: String, style: TextStyle? = null) {
     }
 }
 
-/** A small "label: value" line; an optional long-press action (e.g. reset). */
-@OptIn(ExperimentalFoundationApi::class)
+/** A small "label: value" line. */
 @Composable
-fun KeyValue(label: String, value: String, onLongClick: (() -> Unit)? = null) {
-    val modifier = if (onLongClick == null) Modifier
-    else Modifier.combinedClickable(onClick = {}, onLongClick = onLongClick)
+fun KeyValue(label: String, value: String) {
     Text(
         "$label: $value",
         style = MaterialTheme.typography.bodyMedium,
-        modifier = modifier,
     )
 }
 

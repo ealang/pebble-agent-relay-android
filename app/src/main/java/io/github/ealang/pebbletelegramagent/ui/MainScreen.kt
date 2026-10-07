@@ -469,12 +469,11 @@ private fun CopyBox(value: String, what: String, modifier: Modifier = Modifier) 
 
 @Composable
 private fun StatusCard(state: ScreenState, actions: ScreenActions) {
-    SectionCard("Message counts") {
-        KeyValue(
-            "Sent messages",
-            state.sentTotal.toString(),
-            onLongClick = actions.resetSentTotal,
-        )
+    // Long-press anywhere on the card resets the Sent counter. Pending and
+    // Failed are live counts of real queued items, not counters; clearing
+    // those means discarding messages, which the Issues card does per item.
+    SectionCard("Message counts", onLongClick = actions.resetSentTotal) {
+        KeyValue("Sent messages", state.sentTotal.toString())
         KeyValue("Pending messages", state.pendingCount.toString())
         KeyValue("Failed messages", state.failedItems.size.toString())
 
