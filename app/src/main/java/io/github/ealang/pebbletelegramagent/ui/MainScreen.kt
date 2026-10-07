@@ -80,6 +80,7 @@ class ScreenActions(
     val saveSignature: (String) -> Unit,
     val retryFailed: (name: String) -> Unit,
     val discardFailed: (name: String) -> Unit,
+    val resetSentTotal: () -> Unit,
 )
 
 /**
@@ -93,7 +94,7 @@ class ScreenState(
     val token: String,
     val lastStartFailure: String?,
     val bindFailed: Boolean,
-    val sentSinceUp: Int,
+    val sentTotal: Int,
     val pendingCount: Int,
     val failedItems: List<MessageStore.Item>,
     val logTail: List<String>,
@@ -469,7 +470,11 @@ private fun CopyBox(value: String, what: String, modifier: Modifier = Modifier) 
 @Composable
 private fun StatusCard(state: ScreenState, actions: ScreenActions) {
     SectionCard("Message counts") {
-        KeyValue("Sent messages", state.sentSinceUp.toString())
+        KeyValue(
+            "Sent messages",
+            state.sentTotal.toString(),
+            onLongClick = actions.resetSentTotal,
+        )
         KeyValue("Pending messages", state.pendingCount.toString())
         KeyValue("Failed messages", state.failedItems.size.toString())
 

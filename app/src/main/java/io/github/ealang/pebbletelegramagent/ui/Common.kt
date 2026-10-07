@@ -1,6 +1,8 @@
 package io.github.ealang.pebbletelegramagent.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -129,12 +131,16 @@ fun WarnText(text: String, style: TextStyle? = null) {
     }
 }
 
-/** A small "label: value" line. */
+/** A small "label: value" line; an optional long-press action (e.g. reset). */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun KeyValue(label: String, value: String) {
+fun KeyValue(label: String, value: String, onLongClick: (() -> Unit)? = null) {
+    val modifier = if (onLongClick == null) Modifier
+    else Modifier.combinedClickable(onClick = {}, onLongClick = onLongClick)
     Text(
         "$label: $value",
         style = MaterialTheme.typography.bodyMedium,
+        modifier = modifier,
     )
 }
 

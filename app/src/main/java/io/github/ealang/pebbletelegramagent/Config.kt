@@ -69,6 +69,16 @@ class Config(context: Context) {
         set(value) = prefs.edit().putString(KEY_TG_SIGNATURE, value.trim()).apply()
 
     /**
+     * Lifetime count of messages confirmed delivered. Persisted because the
+     * delivery service stops itself after each drain, so an in-memory count
+     * would reset to zero moments after it ticked up. Long-press on the
+     * "Sent messages" row clears it.
+     */
+    var sentTotal: Int
+        get() = prefs.getInt(KEY_SENT_TOTAL, 0)
+        set(value) = prefs.edit().putInt(KEY_SENT_TOTAL, value).apply()
+
+    /**
      * TDLib's local-database encryption key, random per install. The
      * database holds the account's session keys — this is the secret the
      * SecretStore layer exists for: a copied database file is useless
@@ -108,6 +118,7 @@ class Config(context: Context) {
         private const val KEY_TG_CHAT_TITLE = "telegram_chat_title"
         private const val KEY_TG_DB_KEY = "telegram_db_key"
         private const val KEY_TG_SIGNATURE = "telegram_signature"
+        private const val KEY_SENT_TOTAL = "sent_total"
         private const val DEFAULT_SIGNATURE = "[Sent from my Pebble]"
     }
 }

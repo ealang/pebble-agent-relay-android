@@ -141,7 +141,6 @@ class AgentService : Service() {
         stopPipeline()
         running = false
         bindFailed = false
-        sentSinceUp = 0
         sendBroadcast(Intent(ACTION_STATE_CHANGED).setPackage(packageName))
         Log.i(TAG, "Stopped")
         super.onDestroy()
@@ -207,7 +206,7 @@ class AgentService : Service() {
 
     private fun onDrainFinished(report: DrainReport) {
         if (report.completed > 0) {
-            sentSinceUp += report.completed
+            Config(this).let { it.sentTotal += report.completed }
             gate?.reset()
         }
         if (report.blockedOn != null) gate?.arm()
@@ -410,11 +409,6 @@ class AgentService : Service() {
         /** The listener is bound and accepting. */
         @Volatile
         var running: Boolean = false
-            private set
-
-        /** Messages confirmed done since the service came up — the UI counter. */
-        @Volatile
-        var sentSinceUp: Int = 0
             private set
 
         /**

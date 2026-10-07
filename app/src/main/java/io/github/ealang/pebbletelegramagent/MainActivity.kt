@@ -93,6 +93,11 @@ class MainActivity : ComponentActivity() {
                 AgentService.discardFailed(this, name)
                 bumpSoon()
             },
+            resetSentTotal = {
+                Config(this).sentTotal = 0
+                toast("Sent counter reset")
+                bump()
+            },
         )
 
         setContent {
@@ -148,7 +153,7 @@ class MainActivity : ComponentActivity() {
             token = if (SecretStore.ready) config.token else "",
             lastStartFailure = config.lastStartFailure,
             bindFailed = AgentService.bindFailed,
-            sentSinceUp = AgentService.sentSinceUp,
+            sentTotal = config.sentTotal,
             pendingCount = pending,
             failedItems = failed,
             logTail = AgentService.logTail(this, LOG_DIALOG_LINES),
