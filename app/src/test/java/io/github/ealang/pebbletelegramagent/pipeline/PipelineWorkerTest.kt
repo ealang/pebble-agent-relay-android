@@ -126,7 +126,6 @@ class PipelineWorkerTest {
         assertNull(report.blockedOn)
         assertEquals(0, store.pending().size)
         assertEquals(2, store.failed().size)
-        assertEquals("rejected", store.failed()[0].failureReason())
     }
 
     @Test
@@ -155,7 +154,6 @@ class PipelineWorkerTest {
 
         assertEquals(1, report.newlyFailed)
         assertEquals(1, store.failed().size)
-        assertEquals("gave up", store.failed()[0].failureReason())
     }
 
     @Test

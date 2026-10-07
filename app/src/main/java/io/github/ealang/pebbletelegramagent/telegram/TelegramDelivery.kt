@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit
 class TelegramDelivery(
     context: Context,
     private val store: MessageStore,
-    private val log: PipelineWorker.PipelineLog,
 ) : PipelineWorker.TelegramSender {
 
     private val config = Config(context)
@@ -67,7 +66,6 @@ class TelegramDelivery(
                 .put("messageId", id)
                 .put("handedOffAtMs", System.currentTimeMillis()),
         )
-        log.record(item.name, "handed off", "message $id → chat $chatId")
         return StepResult.Success
     }
 
@@ -97,10 +95,7 @@ class TelegramDelivery(
         }
 
         return when (val seen = outcome) {
-            is TelegramEngine.SendState.Delivered -> {
-                log.record(item.name, "delivered")
-                ReconcileResult.Delivered
-            }
+            is TelegramEngine.SendState.Delivered -> ReconcileResult.Delivered
             is TelegramEngine.SendState.Pending,
             is TelegramEngine.SendState.Unknown,
             -> ReconcileResult.Pending
@@ -143,7 +138,6 @@ class TelegramDelivery(
                 .put("messageId", id)
                 .put("handedOffAtMs", System.currentTimeMillis()),
         )
-        log.record(item.name, "resent", "message $id → chat $chatId, after: $reason")
         return ReconcileResult.Pending
     }
 

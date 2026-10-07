@@ -75,16 +75,15 @@ class MessageStoreTest {
     }
 
     @Test
-    fun `fail parks the item with its reason, retry re-queues it last`() {
+    fun `fail parks the item, retry re-queues it last`() {
         val store = MessageStore(temp.root)
         val first = store.enqueue(meta(1_700_000_000_000L, text = "older"))
-        store.fail(first, "chat unreachable")
+        store.fail(first)
         store.enqueue(meta(1_700_000_001_000L, text = "newer"))
 
         assertEquals(1, store.pending().size)
         val failed = store.failed()
         assertEquals(1, failed.size)
-        assertEquals("chat unreachable", failed[0].failureReason())
 
         store.retry(failed[0])
 
@@ -94,14 +93,13 @@ class MessageStoreTest {
         // The retried item sorts last, so it cannot block newer traffic.
         assertEquals("older", store.pending().last().meta.text)
         assertEquals(names.sorted(), names)
-        assertNull(store.pending().last().failureReason())
     }
 
     @Test
     fun `discard removes a failed item for good`() {
         val store = MessageStore(temp.root)
         val item = store.enqueue(meta())
-        store.fail(item, "bad")
+        store.fail(item)
 
         store.discard(store.failed()[0])
 

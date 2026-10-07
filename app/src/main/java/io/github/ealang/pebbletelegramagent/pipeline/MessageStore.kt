@@ -64,9 +64,6 @@ class MessageStore(root: File) {
         fun processorState(processor: String): JSONObject? =
             File(dir, "$processor.json").takeIf { it.exists() }
                 ?.let { runCatching { JSONObject(it.readText()) }.getOrNull() }
-
-        fun failureReason(): String? =
-            File(dir, REASON).takeIf { it.exists() }?.readText()
     }
 
     // ------------------------------ enqueue ------------------------------
@@ -109,13 +106,11 @@ class MessageStore(root: File) {
         }
     }
 
-    /** Permanent failure: park the item, whole, where Retry can reach it. */
-    fun fail(item: Item, reason: String) {
-        try {
-            writeSynced(File(item.dir, REASON), reason.toByteArray())
-        } catch (e: IOException) {
-            Log.w(TAG, "Could not record the failure reason for ${item.name}", e)
-        }
+    /**
+     * Permanent failure: park the item, whole, where Retry can reach it.
+     * The reason is not kept here; the activity log's "failed" line has it.
+     */
+    fun fail(item: Item) {
         if (!item.dir.renameTo(File(failedDir, item.name))) {
             Log.w(TAG, "Could not move ${item.name} to failed/")
         }
@@ -126,7 +121,6 @@ class MessageStore(root: File) {
      * retrying an old failure must not block today's traffic behind it.
      */
     fun retry(item: Item) {
-        File(item.dir, REASON).delete()
         if (!item.dir.renameTo(File(queueDir, newName(System.currentTimeMillis())))) {
             Log.w(TAG, "Could not requeue ${item.name}")
         }
@@ -164,6 +158,5 @@ class MessageStore(root: File) {
     companion object {
         private const val TAG = "pebble-telegram-agent"
         private const val META = "meta.json"
-        private const val REASON = "reason.txt"
     }
 }

@@ -160,7 +160,7 @@ class AgentService : Service() {
                 log.record(event, detail, item)
             }
         }
-        val delivery = TelegramDelivery(this, store, workerLog)
+        val delivery = TelegramDelivery(this, store)
 
         worker = PipelineWorker(
             store = store,
@@ -215,7 +215,6 @@ class AgentService : Service() {
         // A racing enqueue is safe: the ingress always calls start() after
         // enqueueing, and that intent recreates the service.
         if (!Config(this).enabled && queueIsEmpty()) {
-            debugLog?.record("queue drained; stopping")
             stopSelf()
             return
         }
@@ -486,22 +485,22 @@ class AgentService : Service() {
             false
         }
 
-        /** Queue depth and failed items for the UI, or null when stopped. */
-        fun pipelineSnapshot(): Pair<Int, List<MessageStore.Item>>? {
+        /** Pending and failed counts for the UI, or null when stopped. */
+        fun pipelineSnapshot(): Pair<Int, Int>? {
             val store = activeStore ?: return null
-            return store.pending().size to store.failed()
+            return store.pending().size to store.failed().size
         }
 
         /** The debug log's recent lines for the UI, newest first. */
         fun logTail(context: Context, limit: Int): List<String> =
             (activeLog ?: DebugLog(context.filesDir)).tail(limit)
 
-        fun retryFailed(context: Context, name: String) {
-            onPipeline(context) { store -> store.failed().find { it.name == name }?.let(store::retry) }
+        fun retryAllFailed(context: Context) {
+            onPipeline(context) { store -> store.failed().forEach(store::retry) }
         }
 
-        fun discardFailed(context: Context, name: String) {
-            onPipeline(context) { store -> store.failed().find { it.name == name }?.let(store::discard) }
+        fun discardAllFailed(context: Context) {
+            onPipeline(context) { store -> store.failed().forEach(store::discard) }
         }
 
         /**

@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -57,7 +56,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
-import io.github.ealang.pebbletelegramagent.pipeline.MessageStore
 import io.github.ealang.pebbletelegramagent.telegram.TelegramEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -78,8 +76,8 @@ class ScreenActions(
     val searchChats: (query: String, onResult: (Result<List<TelegramEngine.ChatHit>>) -> Unit) -> Unit,
     val pickChat: (TelegramEngine.ChatHit) -> Unit,
     val saveSignature: (String) -> Unit,
-    val retryFailed: (name: String) -> Unit,
-    val discardFailed: (name: String) -> Unit,
+    val retryAllFailed: () -> Unit,
+    val discardAllFailed: () -> Unit,
     val resetSentTotal: () -> Unit,
 )
 
@@ -96,7 +94,7 @@ class ScreenState(
     val bindFailed: Boolean,
     val sentTotal: Int,
     val pendingCount: Int,
-    val failedItems: List<MessageStore.Item>,
+    val failedCount: Int,
     val logTail: List<String>,
     val telegramStage: TelegramEngine.Stage,
     val telegramStatus: String,
@@ -475,45 +473,17 @@ private fun StatusCard(state: ScreenState, actions: ScreenActions) {
     SectionCard("Message counts", onLongClick = actions.resetSentTotal) {
         KeyValue("Sent messages", state.sentTotal.toString())
         KeyValue("Pending messages", state.pendingCount.toString())
-        KeyValue("Failed messages", state.failedItems.size.toString())
+        KeyValue("Failed messages", state.failedCount.toString())
 
-        state.failedItems.forEach { item ->
-            FailedRow(item, actions)
-        }
-    }
-}
-
-@Composable
-private fun FailedRow(item: MessageStore.Item, actions: ScreenActions) {
-    var expanded by remember(item.name) { mutableStateOf(false) }
-
-    Column(Modifier.fillMaxWidth()) {
-        HorizontalDivider()
-        TextButton(onClick = { expanded = !expanded }) {
-            Text(item.name, style = MaterialTheme.typography.bodySmall)
-        }
-        if (expanded) {
-            val reason = runCatching { item.failureReason() }.getOrNull()
-            val text = runCatching { item.meta.text }.getOrNull()
-            Text(
-                "Reason: ${reason ?: "unknown"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-            text?.let {
-                Text(
-                    it.take(200),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
+        // Failures are handled as a batch; the activity log has the reasons.
+        if (state.failedCount > 0) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { actions.retryFailed(item.name) }) { Text("Retry") }
-                TextButton(onClick = { actions.discardFailed(item.name) }) { Text("Discard") }
+                TextButton(onClick = actions.retryAllFailed) { Text("Retry all") }
+                TextButton(onClick = actions.discardAllFailed) { Text("Discard all") }
             }
         }
     }
 }
-
 
 /**
  * The debug log records everything the app does — both front doors, the

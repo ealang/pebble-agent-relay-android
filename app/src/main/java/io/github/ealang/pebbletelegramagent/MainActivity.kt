@@ -85,12 +85,12 @@ class MainActivity : ComponentActivity() {
                 bump()
             },
             saveSignature = ::saveSignature,
-            retryFailed = { name ->
-                AgentService.retryFailed(this, name)
+            retryAllFailed = {
+                AgentService.retryAllFailed(this)
                 bumpSoon()
             },
-            discardFailed = { name ->
-                AgentService.discardFailed(this, name)
+            discardAllFailed = {
+                AgentService.discardAllFailed(this)
                 bumpSoon()
             },
             resetSentTotal = {
@@ -142,7 +142,7 @@ class MainActivity : ComponentActivity() {
         // When the service is down, read the queue directly — the failed
         // items are still on disk and still reviewable.
         val (pending, failed) = AgentService.pipelineSnapshot()
-            ?: MessageStore(filesDir).let { it.pending().size to it.failed() }
+            ?: MessageStore(filesDir).let { it.pending().size to it.failed().size }
         return ScreenState(
             serverWanted = config.enabled,
             serverRunning = AgentService.running,
@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
             bindFailed = AgentService.bindFailed,
             sentTotal = config.sentTotal,
             pendingCount = pending,
-            failedItems = failed,
+            failedCount = failed,
             logTail = AgentService.logTail(this, LOG_DIALOG_LINES),
             telegramStage = TelegramEngine.stage,
             telegramStatus = TelegramEngine.statusLine(),

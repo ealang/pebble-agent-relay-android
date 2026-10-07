@@ -39,6 +39,13 @@ class PipelineWorker(
     @Volatile
     private var drainQueued = false
 
+    /**
+     * The last "waiting" line written, as item name + reason. A blocked head
+     * is re-examined on every retry pass; logging it once per cause keeps
+     * the activity log to one line per message plus one when it stalls.
+     */
+    private var lastWaiting: Pair<String, String>? = null
+
     fun start() {
         thread.start()
         handler = Handler(thread.looper)
@@ -97,7 +104,7 @@ class PipelineWorker(
                             is ReconcileResult.Failed -> {
                                 newlyFailed++
                                 log.record(item.name, "failed", settled.why)
-                                store.fail(item, settled.why)
+                                store.fail(item)
                             }
                             is ReconcileResult.Pending -> {}
                         }
@@ -110,13 +117,17 @@ class PipelineWorker(
                 is StepResult.Permanent -> {
                     newlyFailed++
                     log.record(item.name, "failed", result.why)
-                    store.fail(item, result.why)
+                    store.fail(item)
                 }
                 is StepResult.Transient -> {
                     // Ordering: nothing behind this item may pass it. Stop —
                     // don't sleep — and let the orchestrator decide when to
                     // wake us again.
-                    log.record(item.name, "waiting", result.why)
+                    val waiting = item.name to result.why
+                    if (waiting != lastWaiting) {
+                        lastWaiting = waiting
+                        log.record(item.name, "waiting", result.why)
+                    }
                     blockedOn = "${item.name}: ${result.why}"
                     break
                 }
@@ -144,7 +155,6 @@ class PipelineWorker(
             return StepResult.Success
         }
 
-        log.record(item.name, "delivering", "${text.length} chars")
         return telegramSender.send(item, text)
     }
 
