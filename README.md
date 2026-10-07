@@ -16,6 +16,49 @@ Telegram by a short-lived foreground service that retries until the network
 cooperates and exits when the queue is empty. Acknowledged means durably
 queued; delivery is confirmed against Telegram before an item is dropped.
 
+## Building
+
+Standard Android Gradle project; Android Studio opens it as is.
+
+- `compileSdk 37`, `minSdk 26`. A first build downloads any missing SDK
+  platform and build-tools itself (not in `--offline` mode).
+- **TDLib** is built from source at a pinned commit by
+  `scripts/build-tdlib.sh` into the gitignored `app/src/main/jniLibs/`.
+  No prebuilt binaries are committed or downloaded. It takes a while; the
+  script's header lists the knobs (ABIs, NDK, commit).
+- **Telegram API credentials** are baked in at build time from
+  `local.properties` (gitignored) or the environment:
+
+  ```properties
+  TELEGRAM_API_ID=12345
+  TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+  ```
+
+  Get your own pair at <https://my.telegram.org> → *API development
+  tools*. They identify the application, not an account, and every install
+  of a given build shares them. Without them the build still succeeds and
+  the app tells you it has no credentials.
+
+Debug build (signed with your debug key, installable straight away):
+
+```bash
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+```
+
+Optional `local.properties` knobs for development: `DEV_ABIS=arm64-v8a`
+packs only that ABI into debug builds (saves ~70 MB per install);
+`DEBUG_KEYSTORE=/path/to/debug.keystore` pins the debug signing key so a
+rebuilt machine still installs over the phone's copy.
+
+Release build (unsigned, split per ABI, plus the Play bundle):
+
+```bash
+./gradlew assembleRelease bundleRelease
+```
+
+Signing is a separate step with a key that is not part of this repo. See
+[docs/RELEASING.md](docs/RELEASING.md) for the full recipe.
+
 ## Security
 
 **Posture.** This app's job is to move your own dictations into your own

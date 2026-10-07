@@ -66,10 +66,36 @@ android {
             // Dev APKs carry only the ABIs named in DEV_ABIS (comma-separated,
             // from local.properties) — a development phone has one ABI, and
             // every extra TDLib copy is ~30 MB of install for nothing.
-            // Unset, debug packs everything, same as release always does.
+            // Unset, debug packs everything.
             buildSetting("DEV_ABIS")?.let { abis ->
                 ndk.abiFilters += abis.split(",").map { it.trim() }
             }
+        }
+        getByName("release") {
+            // Deliberately unsigned: the build produces artifacts, signing is
+            // a separate step with a key that lives nowhere near this repo
+            // (see docs/RELEASING.md). No shrinking either — the APK is
+            // almost entirely TDLib's native code, which R8 cannot touch, and
+            // keep rules for the generated TDLib JNI classes would buy
+            // nothing but risk.
+            isMinifyEnabled = false
+            signingConfig = null
+        }
+    }
+
+    // Release APKs are split per ABI (plus one universal), so a sideloader
+    // downloads ~30 MB instead of ~100 MB. The bundle ignores this and
+    // carries everything; Play does its own splitting. Enabled only for
+    // release tasks: AGP refuses an ABI that is both split and filtered, and
+    // debug uses DEV_ABIS above. (Split APKs share one versionCode; fine for
+    // sideloading, and Play gets the bundle, never the split APKs.)
+    val releaseRequested = gradle.startParameter.taskNames.any { it.contains("Release") }
+    splits {
+        abi {
+            isEnable = releaseRequested
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true
         }
     }
 
