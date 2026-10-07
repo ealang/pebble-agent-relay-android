@@ -20,7 +20,7 @@
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.App"
-        tools:targetApi="35">
+        tools:targetApi="36">
 
         <activity
             android:name=".MainActivity"
