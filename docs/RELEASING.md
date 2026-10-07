@@ -30,8 +30,15 @@ Commit the bump; tag it after the release is out (`git tag v0.2`).
 ## 3. Build
 
 ```bash
-./gradlew clean assembleRelease bundleRelease
+./gradlew lintRelease clean assembleRelease bundleRelease
 ```
+
+Lint first: its `ExpiredTargetSdkVersion` check fails the build once
+`targetSdk` falls below what Play currently accepts (Google raises the bar
+every year, deadline 31 August), and `OldTargetApi` warns when a newer
+target exists. When bumping `targetSdk`, read that Android version's
+"behavior changes for apps targeting" page and test on a device or
+emulator running it — the new behaviours only switch on there.
 
 Outputs, all **unsigned**:
 
