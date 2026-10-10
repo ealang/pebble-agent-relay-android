@@ -497,6 +497,22 @@ class AgentService : Service() {
 
         fun retryAllFailed(context: Context) {
             onPipeline(context) { store -> store.failed().forEach(store::retry) }
+            // With the listener off there is no service to pick the items up:
+            // the ingress starts one after each enqueue, and a retry must too.
+            // onPipeline ran synchronously on the direct path, so the items
+            // are on disk before the service comes up.
+            if (activeWorker == null) start(context)
+        }
+
+        /**
+         * Messages on disk with no service to deliver them — left behind by
+         * a process death mid-drain, or by an older build's Retry. Called
+         * when the app comes to the foreground; a no-op when the service is
+         * up or the queue is empty.
+         */
+        fun resumeStranded(context: Context) {
+            if (activeWorker != null) return
+            if (MessageStore(context.filesDir).pending().isNotEmpty()) start(context)
         }
 
         fun discardAllFailed(context: Context) {

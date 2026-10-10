@@ -113,6 +113,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        AgentService.resumeStranded(this)
         val filter = IntentFilter(AgentService.ACTION_STATE_CHANGED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(stateChanged, filter, RECEIVER_NOT_EXPORTED)
