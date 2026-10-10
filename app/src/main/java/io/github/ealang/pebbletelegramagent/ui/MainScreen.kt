@@ -176,8 +176,7 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
             when (tab) {
                 TAB_STATUS -> {
                     IssuesCard(issues, onNavigate = { tab = it })
-                    StatusCard(state, actions)
-                    ActivityLogCard(state)
+                    ActivityCard(state, actions)
                 }
                 TAB_TELEGRAM -> {
                     TelegramAuthCard(state, actions)
@@ -465,12 +464,20 @@ private fun CopyBox(value: String, what: String, modifier: Modifier = Modifier) 
 
 // ------------------------------- status -------------------------------
 
+/**
+ * Counters and the way into the activity log, one card.
+ * The log records everything the app does — both front doors, the queue,
+ * Telegram delivery, the listener — so it is the app's activity log, not
+ * the server's, and it lives here on the Status tab.
+ */
 @Composable
-private fun StatusCard(state: ScreenState, actions: ScreenActions) {
+private fun ActivityCard(state: ScreenState, actions: ScreenActions) {
+    var showLog by remember { mutableStateOf(false) }
+
     // Long-press anywhere on the card resets the Sent counter. Pending and
     // Failed are live counts of real queued items, not counters; clearing
-    // those means discarding messages, which the Issues card does per item.
-    SectionCard("Message counts", onLongClick = actions.resetSentTotal) {
+    // those means discarding messages, which the buttons below do as a batch.
+    SectionCard("Activity", onLongClick = actions.resetSentTotal) {
         KeyValue("Sent messages", state.sentTotal.toString())
         KeyValue("Pending messages", state.pendingCount.toString())
         KeyValue("Failed messages", state.failedCount.toString())
@@ -482,20 +489,8 @@ private fun StatusCard(state: ScreenState, actions: ScreenActions) {
                 TextButton(onClick = actions.discardAllFailed) { Text("Discard all") }
             }
         }
-    }
-}
 
-/**
- * The debug log records everything the app does — both front doors, the
- * queue, Telegram delivery, the listener — so it is the app's activity
- * log, not the server's, and it lives on the Status tab.
- */
-@Composable
-private fun ActivityLogCard(state: ScreenState) {
-    var showLog by remember { mutableStateOf(false) }
-
-    SectionCard("Activity log") {
-        TextButton(onClick = { showLog = true }) { Text("Open the log") }
+        TextButton(onClick = { showLog = true }) { Text("Activity log") }
     }
 
     if (showLog) {
