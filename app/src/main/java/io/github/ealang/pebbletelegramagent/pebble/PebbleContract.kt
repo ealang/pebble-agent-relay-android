@@ -34,6 +34,14 @@ object PebbleContract {
      */
     val KEY_TRANSCRIPT: UInt = 10000u
 
+    /**
+     * When the dictation was captured, seconds since the epoch by the watch
+     * clock, fourth in the list. Every attempt to send the same transcript
+     * carries the same value — the companion's handle for recognising a
+     * repeat after a lost Ack.
+     */
+    val KEY_RECORDED_AT: UInt = 10003u
+
     private fun hexToBytes(hex: String): ByteArray =
         ByteArray(hex.length / 2) { i ->
             hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
@@ -48,3 +56,15 @@ object PebbleContract {
 internal fun extractTranscript(data: Map<UInt, PebbleDictionaryItem>): String? =
     (data[PebbleContract.KEY_TRANSCRIPT] as? PebbleDictionaryItem.Text)
         ?.value?.trim()?.ifEmpty { null }
+
+/**
+ * The capture time as epoch milliseconds, or 0 when the watch sent none
+ * (an older watchapp build) — 0 is what [Meta.recordedAtMs] means by absent.
+ * The watch writes a uint32; a signed 32-bit reading is tolerated too.
+ */
+internal fun extractRecordedAtMs(data: Map<UInt, PebbleDictionaryItem>): Long =
+    when (val item = data[PebbleContract.KEY_RECORDED_AT]) {
+        is PebbleDictionaryItem.UInt32 -> item.value.toLong() * 1000
+        is PebbleDictionaryItem.Int32 -> item.value.toLong() * 1000
+        else -> 0
+    }

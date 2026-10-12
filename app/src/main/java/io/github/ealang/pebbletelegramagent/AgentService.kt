@@ -476,9 +476,17 @@ class AgentService : Service() {
          */
         fun enqueueExternal(context: Context, meta: Meta): Boolean = try {
             val store = activeStore ?: MessageStore(context.filesDir)
-            val item = store.enqueue(meta)
-            (activeLog ?: DebugLog(context.filesDir)).record("received", meta.client, item.name)
-            activeWorker?.wake()
+            val log = activeLog ?: DebugLog(context.filesDir)
+            // A stamped message is admitted once: the watch resends the same
+            // stamp when it misses our Ack, and the first copy may already
+            // be delivered. Ack the repeat all the same — it *was* accepted.
+            val item = if (meta.recordedAtMs != 0L) store.enqueueOnce(meta) else store.enqueue(meta)
+            if (item == null) {
+                log.record("duplicate", "${meta.client}, recorded at ${meta.recordedAtMs / 1000}")
+            } else {
+                log.record("received", meta.client, item.name)
+                activeWorker?.wake()
+            }
             true
         } catch (e: Exception) {
             Log.w(TAG, "Enqueue from the Pebble ingress failed", e)

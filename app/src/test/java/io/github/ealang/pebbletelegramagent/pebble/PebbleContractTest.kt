@@ -38,6 +38,23 @@ class PebbleContractTest {
     }
 
     @Test
+    fun `recorded-at is read as a uint32 of seconds, absent is zero`() {
+        assertEquals(
+            1_760_000_000_000L,
+            extractRecordedAtMs(
+                mapOf(PebbleContract.KEY_RECORDED_AT to PebbleDictionaryItem.UInt32(1_760_000_000L)),
+            ),
+        )
+        assertEquals(0L, extractRecordedAtMs(emptyMap()))
+        assertEquals(
+            0L,
+            extractRecordedAtMs(
+                mapOf(PebbleContract.KEY_RECORDED_AT to PebbleDictionaryItem.Text("1760000000")),
+            ),
+        )
+    }
+
+    @Test
     fun `both watchapp builds are accepted`() {
         assertEquals(
             setOf(

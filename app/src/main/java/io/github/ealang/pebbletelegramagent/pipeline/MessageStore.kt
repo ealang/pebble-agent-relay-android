@@ -5,6 +5,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -27,11 +28,13 @@ class MessageStore(root: File) {
     private val queueDir = File(root, "message-queue")
     private val tmpDir = File(queueDir, "tmp")
     private val failedDir = File(queueDir, "failed")
+    private val seenDir = File(queueDir, "seen")
     private val seq: AtomicInteger
 
     init {
         queueDir.mkdirs()
         failedDir.mkdirs()
+        seenDir.mkdirs()
 
         // Leftovers in tmp/ are items half-written when the process died.
         // The sender never got its 200 for them, so deleting is safe — the
@@ -86,6 +89,46 @@ class MessageStore(root: File) {
         return Item(home)
     }
 
+    // ----------------------------- receipts -----------------------------
+
+    /**
+     * Admit a message once. The watch resends when an Ack is lost, with the
+     * same [Meta.recordedAtMs]; by then the original may already be
+     * delivered and gone from the queue, so the memory of it has to live
+     * somewhere else: a marker file in `seen/`, named for the sender, the
+     * timestamp and a hash of the text (same stamp with different text is a
+     * different message). Creating the marker is the atomic claim — no lock,
+     * no read-modify-write, and thread-safe like [enqueue]. Returns null for
+     * a repeat. Markers older than [SEEN_RETENTION_MS] are pruned here.
+     */
+    @Throws(IOException::class)
+    fun enqueueOnce(meta: Meta): Item? {
+        pruneSeen()
+        val marker = File(seenDir, receiptName(meta))
+        if (!marker.createNewFile()) return null
+        return try {
+            enqueue(meta)
+        } catch (e: IOException) {
+            marker.delete() // not admitted, so a resend must get through
+            throw e
+        }
+    }
+
+    private fun receiptName(meta: Meta): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(meta.text.toByteArray())
+            .take(8)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        return "${meta.client ?: "unknown"}-${meta.recordedAtMs}-$digest"
+    }
+
+    private fun pruneSeen() {
+        val now = System.currentTimeMillis() // same clock that stamps the files
+        seenDir.listFiles()?.forEach {
+            if (now - it.lastModified() > SEEN_RETENTION_MS) it.delete()
+        }
+    }
+
     // ------------------------------ reads ------------------------------
 
     /** Every queued item, oldest first — names are UTC stamps, so sorted = FIFO. */
@@ -136,7 +179,7 @@ class MessageStore(root: File) {
 
     private fun itemDirs(parent: File): List<File> =
         parent.listFiles()?.filter {
-            it.isDirectory && it.name != "tmp" && it.name != "failed"
+            it.isDirectory && it.name != "tmp" && it.name != "failed" && it.name != "seen"
         } ?: emptyList()
 
     private fun newName(atMs: Long): String {
@@ -157,6 +200,9 @@ class MessageStore(root: File) {
 
     companion object {
         private const val TAG = "pebble-telegram-agent"
+
+        /** The watch retries within seconds or minutes; a day is generous. */
+        private const val SEEN_RETENTION_MS = 24L * 60 * 60 * 1000
         private const val META = "meta.json"
     }
 }

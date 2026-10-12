@@ -122,6 +122,43 @@ class MessageStoreTest {
     }
 
     @Test
+    fun `enqueueOnce admits a stamped message once`() {
+        val store = MessageStore(temp.root)
+        val first = store.enqueueOnce(meta(text = "hello"))
+
+        assertNotNull(first)
+        // Same stamp, same text: the watch resending after a lost Ack.
+        assertNull(store.enqueueOnce(meta(text = "hello")))
+        // Same stamp, different text: a different message.
+        assertNotNull(store.enqueueOnce(meta(text = "other")))
+        // The receipt outlives delivery, which is the whole point.
+        store.complete(first!!)
+        assertNull(store.enqueueOnce(meta(text = "hello")))
+        assertEquals(1, store.pending().size)
+    }
+
+    @Test
+    fun `enqueueOnce forgets receipts after a day`() {
+        val store = MessageStore(temp.root)
+        val stamped = meta().copy(recordedAtMs = 1_700_000_000_000L)
+        assertNotNull(store.enqueueOnce(stamped))
+        assertNull(store.enqueueOnce(stamped))
+        // Receipts age by file time, so backdate the marker past a day.
+        File(temp.root, "message-queue/seen").listFiles()!!.forEach {
+            assertTrue(it.setLastModified(System.currentTimeMillis() - 25L * 60 * 60 * 1000))
+        }
+        assertNotNull(store.enqueueOnce(stamped))
+    }
+
+    @Test
+    fun `the seen folder is not mistaken for a queued item`() {
+        val store = MessageStore(temp.root)
+        store.enqueueOnce(meta())
+        assertEquals(1, store.pending().size)
+        assertEquals(0, store.failed().size)
+    }
+
+    @Test
     fun `two enqueues in the same millisecond get distinct names`() {
         val store = MessageStore(temp.root)
         val a = store.enqueue(meta(1_700_000_000_000L))

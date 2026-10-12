@@ -134,7 +134,7 @@ class PebbleIngressService : BasePebbleListenerService() {
             this,
             Meta(
                 text = text,
-                recordedAtMs = 0, // the watch sends no timestamp
+                recordedAtMs = extractRecordedAtMs(data),
                 client = CLIENT_NAME,
                 receivedAtMs = System.currentTimeMillis(),
             ),
