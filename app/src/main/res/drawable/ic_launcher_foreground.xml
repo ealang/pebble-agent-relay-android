@@ -1,23 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Launcher art: the same wristwatch as the status-bar icon.
+  Launcher art: white wristwatch with a Telegram-blue face and a white paper
+  plane on it. Navy background comes from @color/ic_launcher_background.
 
-  Adaptive icons are drawn on a 108dp canvas of which only the middle 72dp is
-  guaranteed to survive the launcher's mask, so the 24dp glyph is scaled to
-  60dp and centred well inside that.
+  Adaptive icons are drawn on a 108dp canvas of which only the middle 66dp is
+  guaranteed to survive the launcher's mask; everything here sits inside that.
+  The blue disc (r=18) is drawn first and is one dp larger than the face hole
+  (r=17) so no background shows through the anti-aliased seam.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- face -->
+    <path
+        android:fillColor="#2AABEE"
+        android:pathData="M36,54a18,18 0 1,0 36,0a18,18 0 1,0 -36,0z" />
+    <!-- strap lugs -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45,23L63,23L65,36L43,36zM45,85L63,85L65,72L43,72z" />
+    <!-- bezel ring: outer r=22, hole r=17 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M32,54a22,22 0 1,0 44,0a22,22 0 1,0 -44,0zM37,54a17,17 0 1,0 34,0a17,17 0 1,0 -34,0z" />
+    <!-- paper plane (Material "send"), 24-unit glyph scaled 1.15 and centred -->
     <group
-        android:scaleX="2.5"
-        android:scaleY="2.5"
-        android:translateX="24"
-        android:translateY="24">
+        android:scaleX="1.15"
+        android:scaleY="1.15"
+        android:translateX="39.625"
+        android:translateY="40.2">
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M20,12c0,-2.54 -1.19,-4.81 -3.04,-6.27L16,0L8,0l-0.95,5.73C5.19,7.19 4,9.45 4,12s1.19,4.81 3.05,6.27L8,24h8l0.96,-5.73C18.81,16.81 20,14.54 20,12zM6,12c0,-3.31 2.69,-6 6,-6s6,2.69 6,6s-2.69,6 -6,6s-6,-2.69 -6,-6z" />
+            android:pathData="M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z" />
     </group>
 </vector>

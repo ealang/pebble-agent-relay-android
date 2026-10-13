@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon layer (Android 13+): launchers take only the alpha and tint it,
+  so this is the foreground without the blue disc - watch plus plane in one
+  colour. Geometry matches ic_launcher_foreground.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45,23L63,23L65,36L43,36zM45,85L63,85L65,72L43,72z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M32,54a22,22 0 1,0 44,0a22,22 0 1,0 -44,0zM37,54a17,17 0 1,0 34,0a17,17 0 1,0 -34,0z" />
+    <group
+        android:scaleX="1.15"
+        android:scaleY="1.15"
+        android:translateX="39.625"
+        android:translateY="40.2">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z" />
+    </group>
+</vector>
