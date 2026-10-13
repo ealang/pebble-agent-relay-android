@@ -59,6 +59,21 @@ Release build (unsigned, split per ABI, plus the Play bundle):
 Signing is a separate step with a key that is not part of this repo. See
 [docs/RELEASING.md](docs/RELEASING.md) for the full recipe.
 
+## Icons
+
+The launcher drawable
+[`app/src/main/res/drawable/ic_launcher_foreground.xml`](app/src/main/res/drawable/ic_launcher_foreground.xml)
+is the single source for all the artwork, including the Pebble watch app's
+icons. `art/render-icons.py` reads the paper-plane glyph out of it and writes
+the rasterised PNGs to `art/pebble/`: the 25×25 watch menu icon (colour and
+1-bit variants) and the 80×80 / 144×144 Rebble appstore icons. Copy those
+into the watch app repo / the store listing; edit the drawable, not the PNGs.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install cairosvg pillow
+.venv/bin/python art/render-icons.py
+```
+
 ## Security
 
 **Posture.** This app's job is to move your own dictations into your own
