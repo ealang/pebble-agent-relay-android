@@ -7,19 +7,23 @@ geometry live there. This script reads the glyph out of it, composes the
 Pebble squircle around it and writes the PNGs the watch app and the Rebble
 appstore listing need into art/pebble/:
 
-  menu_icon~color.png   25x25  watch launcher menu, colour platforms (blue
-                        rounded square, no border, plane r=11)
-  menu_icon~bw.png      25x25  same in black, hard-edged, for 1-bit platforms
+  menu_icon~color.png   25x25  watch launcher menu, colour platforms. The
+                        launcher shows app icons there as greyscale, so it is
+                        drawn in grey: black border, light-grey interior,
+                        black plane, transparent corners.
+  menu_icon~bw.png      25x25  same with a white interior, hard 1-bit edges,
+                        for the black-and-white platforms (inverting mode)
   store_icon_80.png     80x80  appstore "small icon"
   store_icon_144.png   144x144 appstore "large icon"
   companion_icon_144.png 144x144 appstore companion-app icon (the Android
                         launcher icon, circle-masked)
   launcher_preview.png 432x432 the Android icon as a launcher would show it
+  android_launcher_foreground.xml  verbatim copy of the source drawable
 
 Needs cairosvg and Pillow:  python3 -m venv .venv && .venv/bin/pip install cairosvg pillow
 Run from the repo root:     .venv/bin/python art/render-icons.py
 """
-import io, math, re, xml.etree.ElementTree as ET
+import io, math, shutil, xml.etree.ElementTree as ET
 from pathlib import Path
 
 import cairosvg
@@ -94,29 +98,29 @@ def enclosing_circle(path: str, units: float = 24, res: int = 40) -> tuple[float
 
 
 def squircle_svg(plane: str, circle, canvas: float = 25, fill: str = PEBBLE_BLUE,
-                 border: float = 2, plane_r: float = 8.6, radius: float = 5) -> str:
-    """Rounded square with an optional white border and a white plane. The
-    proportions are given in 25px units and scale with the canvas."""
+                 border: float = 2, border_color: str = "#FFFFFF", plane_fill: str = "#FFFFFF",
+                 plane_r: float = 8.6, radius: float = 5) -> str:
+    """Rounded square with a border and a plane. Proportions are given in
+    25px units and scale with the canvas."""
     k = canvas / 25
     radius, border, plane_r = radius * k, border * k, plane_r * k
     cx, cy, r = circle
     s = plane_r / r
     tx, ty = canvas / 2 - cx * s, canvas / 2 - cy * s
-    ring = (
-        f'<rect x="{border / 2}" y="{border / 2}" width="{canvas - border}" height="{canvas - border}" '
-        f'rx="{radius - border / 2}" fill="none" stroke="#FFFFFF" stroke-width="{border}"/>'
-    ) if border else ""
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {canvas} {canvas}">'
-        f'<rect width="{canvas}" height="{canvas}" rx="{radius}" fill="{fill}"/>{ring}'
-        f'<g transform="translate({tx:.4f},{ty:.4f}) scale({s:.5f})"><path fill="#FFFFFF" d="{plane}"/></g></svg>'
+        f'<rect width="{canvas}" height="{canvas}" rx="{radius}" fill="{border_color}"/>'
+        f'<rect x="{border}" y="{border}" width="{canvas - 2 * border}" height="{canvas - 2 * border}" '
+        f'rx="{radius - border}" fill="{fill}"/>'
+        f'<g transform="translate({tx:.4f},{ty:.4f}) scale({s:.5f})"><path fill="{plane_fill}" d="{plane}"/></g></svg>'
     )
 
 
-def bw_svg(plane: str, circle) -> str:
-    """1-bit menu icon: same geometry as the colour one but black, since the
-    launcher background on bw watches is white."""
-    return squircle_svg(plane, circle, fill="#000000", border=0, plane_r=11)
+def menu_svg(plane: str, circle, interior: str) -> str:
+    """25px launcher icon: black border and plane on the given interior.
+    Colour watches render app menu icons as greyscale, bw watches as
+    inverting 1-bit, so colour would be lost anyway."""
+    return squircle_svg(plane, circle, fill=interior, border_color="#000000", plane_fill="#000000")
 
 
 def one_bit(img: Image.Image) -> Image.Image:
@@ -135,12 +139,13 @@ def main() -> None:
     circle_mask(render(launcher_svg, 432)).save(OUT / "launcher_preview.png")
     circle_mask(render(launcher_svg, 144)).save(OUT / "companion_icon_144.png")
 
-    render(squircle_svg(plane, circle, border=0, plane_r=11), 25).save(OUT / "menu_icon~color.png")
-    one_bit(render(bw_svg(plane, circle), 25)).save(OUT / "menu_icon~bw.png")
+    render(menu_svg(plane, circle, "#AAAAAA"), 25).save(OUT / "menu_icon~color.png")
+    one_bit(render(menu_svg(plane, circle, "#FFFFFF"), 25)).save(OUT / "menu_icon~bw.png")
+    shutil.copy(RES / "drawable/ic_launcher_foreground.xml", OUT / "android_launcher_foreground.xml")
     for size in (80, 144):
         render(squircle_svg(plane, circle, canvas=size), size).save(OUT / f"store_icon_{size}.png")
 
-    for p in sorted(OUT.iterdir()):
+    for p in sorted(OUT.glob("*.png")):
         im = Image.open(p)
         print(f"{p.name:24} {im.size[0]}x{im.size[1]}")
 

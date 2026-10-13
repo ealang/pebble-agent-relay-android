@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher art: white wristwatch with a Telegram-blue face carrying the same
+  paper-plane glyph the Telegram tab uses (Material Design Icons "telegram",
+  Apache-2.0; see ui/AppIcons.kt). Navy background comes from
+  @color/ic_launcher_background.
+
+  Adaptive icons are drawn on a 108dp canvas of which only the middle 66dp is
+  guaranteed to survive the launcher's mask; everything here sits inside that.
+  The blue disc (r=18) is drawn first and is one dp larger than the face hole
+  (r=17) so no background shows through the anti-aliased seam. The plane is
+  scaled so its minimal enclosing circle (r=14.3) is centred in the face,
+  leaving a ring of blue all round.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- face -->
+    <path
+        android:fillColor="#2AABEE"
+        android:pathData="M36,54a18,18 0 1,0 36,0a18,18 0 1,0 -36,0z" />
+    <!-- strap lugs -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45,23L63,23L65,36L43,36zM45,85L63,85L65,72L43,72z" />
+    <!-- bezel ring: outer r=22, hole r=17 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M32,54a22,22 0 1,0 44,0a22,22 0 1,0 -44,0zM37,54a17,17 0 1,0 34,0a17,17 0 1,0 -34,0z" />
+    <!-- paper plane -->
+    <group
+        android:scaleX="1.4262"
+        android:scaleY="1.4262"
+        android:translateX="35.445"
+        android:translateY="38.305">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M9.78,18.65L10.06,14.42L17.74,7.5C18.08,7.19 17.67,7.04 17.22,7.31L7.74,13.3L3.64,12C2.76,11.75 2.75,11.14 3.84,10.7L19.81,4.54C20.54,4.21 21.24,4.72 20.96,5.84L18.24,18.65C18.05,19.56 17.5,19.78 16.74,19.36L12.6,16.3L10.61,18.23C10.38,18.46 10.19,18.65 9.78,18.65Z" />
+    </group>
+</vector>
