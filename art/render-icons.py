@@ -7,9 +7,9 @@ geometry live there. This script reads the glyph out of it, composes the
 Pebble squircle around it and writes the PNGs the watch app and the Rebble
 appstore listing need into art/pebble/:
 
-  menu_icon~color.png   25x25  watch launcher menu, colour platforms
-  menu_icon~bw.png      25x25  watch launcher menu, 1-bit platforms (black
-                        rounded square, larger plane, no border, hard edges)
+  menu_icon~color.png   25x25  watch launcher menu, colour platforms (blue
+                        rounded square, no border, plane r=11)
+  menu_icon~bw.png      25x25  same in black, hard-edged, for 1-bit platforms
   store_icon_80.png     80x80  appstore "small icon"
   store_icon_144.png   144x144 appstore "large icon"
   companion_icon_144.png 144x144 appstore companion-app icon (the Android
@@ -93,38 +93,30 @@ def enclosing_circle(path: str, units: float = 24, res: int = 40) -> tuple[float
     return best[1], best[2], best[0]
 
 
-def squircle_svg(plane: str, circle, canvas: float = 25, fill: str = PEBBLE_BLUE) -> str:
-    """Rounded square, white border, white plane. Proportions are those of the
-    25px menu icon (corner radius 5, border 2, plane circle r=8.6); larger
-    sizes scale with the canvas."""
+def squircle_svg(plane: str, circle, canvas: float = 25, fill: str = PEBBLE_BLUE,
+                 border: float = 2, plane_r: float = 8.6, radius: float = 5) -> str:
+    """Rounded square with an optional white border and a white plane. The
+    proportions are given in 25px units and scale with the canvas."""
     k = canvas / 25
-    radius, border, plane_r = 5 * k, 2 * k, 8.6 * k
+    radius, border, plane_r = radius * k, border * k, plane_r * k
     cx, cy, r = circle
     s = plane_r / r
     tx, ty = canvas / 2 - cx * s, canvas / 2 - cy * s
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {canvas} {canvas}">'
-        f'<rect width="{canvas}" height="{canvas}" rx="{radius}" fill="{fill}"/>'
+    ring = (
         f'<rect x="{border / 2}" y="{border / 2}" width="{canvas - border}" height="{canvas - border}" '
         f'rx="{radius - border / 2}" fill="none" stroke="#FFFFFF" stroke-width="{border}"/>'
-        f'<g transform="translate({tx:.4f},{ty:.4f}) scale({s:.5f})"><path fill="#FFFFFF" d="{plane}"/></g></svg>'
-    )
-
-
-def bw_svg(plane: str, circle, canvas: float = 25) -> str:
-    """1-bit menu icon. The launcher background on bw watches is white, so the
-    white border of the colour icon would vanish; instead use the whole canvas
-    for a black rounded square and a larger plane (r=11) so the wing/body gap
-    survives thresholding."""
-    radius, plane_r = 5, 11
-    cx, cy, r = circle
-    s = plane_r / r
-    tx, ty = canvas / 2 - cx * s, canvas / 2 - cy * s
+    ) if border else ""
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {canvas} {canvas}">'
-        f'<rect width="{canvas}" height="{canvas}" rx="{radius}" fill="#000000"/>'
+        f'<rect width="{canvas}" height="{canvas}" rx="{radius}" fill="{fill}"/>{ring}'
         f'<g transform="translate({tx:.4f},{ty:.4f}) scale({s:.5f})"><path fill="#FFFFFF" d="{plane}"/></g></svg>'
     )
+
+
+def bw_svg(plane: str, circle) -> str:
+    """1-bit menu icon: same geometry as the colour one but black, since the
+    launcher background on bw watches is white."""
+    return squircle_svg(plane, circle, fill="#000000", border=0, plane_r=11)
 
 
 def one_bit(img: Image.Image) -> Image.Image:
@@ -143,8 +135,7 @@ def main() -> None:
     circle_mask(render(launcher_svg, 432)).save(OUT / "launcher_preview.png")
     circle_mask(render(launcher_svg, 144)).save(OUT / "companion_icon_144.png")
 
-    menu = render(squircle_svg(plane, circle), 25)
-    menu.save(OUT / "menu_icon~color.png")
+    render(squircle_svg(plane, circle, border=0, plane_r=11), 25).save(OUT / "menu_icon~color.png")
     one_bit(render(bw_svg(plane, circle), 25)).save(OUT / "menu_icon~bw.png")
     for size in (80, 144):
         render(squircle_svg(plane, circle, canvas=size), size).save(OUT / f"store_icon_{size}.png")
