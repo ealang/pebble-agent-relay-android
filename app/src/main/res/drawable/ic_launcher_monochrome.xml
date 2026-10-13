@@ -17,12 +17,12 @@
         android:fillType="evenOdd"
         android:pathData="M32,54a22,22 0 1,0 44,0a22,22 0 1,0 -44,0zM37,54a17,17 0 1,0 34,0a17,17 0 1,0 -34,0z" />
     <group
-        android:scaleX="1.15"
-        android:scaleY="1.15"
-        android:translateX="39.625"
-        android:translateY="40.2">
+        android:scaleX="1.4262"
+        android:scaleY="1.4262"
+        android:translateX="35.445"
+        android:translateY="38.305">
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z" />
+            android:pathData="M9.78,18.65L10.06,14.42L17.74,7.5C18.08,7.19 17.67,7.04 17.22,7.31L7.74,13.3L3.64,12C2.76,11.75 2.75,11.14 3.84,10.7L19.81,4.54C20.54,4.21 21.24,4.72 20.96,5.84L18.24,18.65C18.05,19.56 17.5,19.78 16.74,19.36L12.6,16.3L10.61,18.23C10.38,18.46 10.19,18.65 9.78,18.65Z" />
     </group>
 </vector>
