@@ -8,7 +8,8 @@ Pebble squircle around it and writes the PNGs the watch app and the Rebble
 appstore listing need into art/pebble/:
 
   menu_icon~color.png   25x25  watch launcher menu, colour platforms
-  menu_icon~bw.png      25x25  watch launcher menu, 1-bit platforms
+  menu_icon~bw.png      25x25  watch launcher menu, 1-bit platforms (black
+                        rounded square, larger plane, no border, hard edges)
   store_icon_80.png     80x80  appstore "small icon"
   store_icon_144.png   144x144 appstore "large icon"
   companion_icon_144.png 144x144 appstore companion-app icon (the Android
@@ -110,11 +111,27 @@ def squircle_svg(plane: str, circle, canvas: float = 25, fill: str = PEBBLE_BLUE
     )
 
 
+def bw_svg(plane: str, circle, canvas: float = 25) -> str:
+    """1-bit menu icon. The launcher background on bw watches is white, so the
+    white border of the colour icon would vanish; instead use the whole canvas
+    for a black rounded square and a larger plane (r=11) so the wing/body gap
+    survives thresholding."""
+    radius, plane_r = 5, 11
+    cx, cy, r = circle
+    s = plane_r / r
+    tx, ty = canvas / 2 - cx * s, canvas / 2 - cy * s
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {canvas} {canvas}">'
+        f'<rect width="{canvas}" height="{canvas}" rx="{radius}" fill="#000000"/>'
+        f'<g transform="translate({tx:.4f},{ty:.4f}) scale({s:.5f})"><path fill="#FFFFFF" d="{plane}"/></g></svg>'
+    )
+
+
 def one_bit(img: Image.Image) -> Image.Image:
-    """Colour -> black/white for aplite/diorite: white stays white, blue fill
-    becomes black, corners stay transparent."""
+    """Threshold an anti-aliased render to pure black/white with a hard alpha
+    edge, which is what the 1-bit platforms would do anyway, only less tidily."""
     r, _, _, a = img.split()
-    ink = r.point(lambda v: 255 if v > 200 else 0)
+    ink = r.point(lambda v: 255 if v > 127 else 0)
     return Image.merge("RGBA", (ink, ink, ink, a.point(lambda v: 255 if v > 127 else 0)))
 
 
@@ -128,7 +145,7 @@ def main() -> None:
 
     menu = render(squircle_svg(plane, circle), 25)
     menu.save(OUT / "menu_icon~color.png")
-    one_bit(menu).save(OUT / "menu_icon~bw.png")
+    one_bit(render(bw_svg(plane, circle), 25)).save(OUT / "menu_icon~bw.png")
     for size in (80, 144):
         render(squircle_svg(plane, circle, canvas=size), size).save(OUT / f"store_icon_{size}.png")
 
