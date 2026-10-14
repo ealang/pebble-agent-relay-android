@@ -136,8 +136,11 @@ def main() -> None:
     launcher_svg, plane = drawable_to_svg(RES / "drawable/ic_launcher_foreground.xml", launcher_background())
     circle = enclosing_circle(plane)
 
-    circle_mask(render(launcher_svg, 432)).save(OUT / "launcher_preview.png")
-    circle_mask(render(launcher_svg, 144)).save(OUT / "companion_icon_144.png")
+    # A launcher shows only the centre 72 of the 108 canvas, then masks that.
+    for size, name in ((432, "launcher_preview.png"), (144, "companion_icon_144.png")):
+        full = render(launcher_svg, size * 3 // 2)
+        o = size // 4
+        circle_mask(full.crop((o, o, o + size, o + size))).save(OUT / name)
 
     render(menu_svg(plane, circle, "#AAAAAA"), 25).save(OUT / "menu_icon~color.png")
     one_bit(render(menu_svg(plane, circle, "#FFFFFF"), 25)).save(OUT / "menu_icon~bw.png")
