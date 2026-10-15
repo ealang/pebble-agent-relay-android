@@ -348,7 +348,7 @@ class AgentService : Service() {
         // foreground, not something the user needs to be alerted about.
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Pebble Telegram Agent",
+            "Pebble Operator",
             NotificationManager.IMPORTANCE_LOW,
         )
         channel.description = "Shown while the agent is listening or delivering."
@@ -371,7 +371,7 @@ class AgentService : Service() {
         )
 
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Pebble Telegram Agent")
+            .setContentTitle("Pebble Operator")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_stat_watch)
             .setContentIntent(open)

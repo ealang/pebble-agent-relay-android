@@ -16,7 +16,7 @@
     <application
         android:name=".App"
         android:allowBackup="false"
-        android:label="Pebble Telegram Agent"
+        android:label="Pebble Operator"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.App"
@@ -25,7 +25,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Pebble Telegram Agent">
+            android:label="Pebble Operator">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
