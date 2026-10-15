@@ -1,21 +1,28 @@
 package io.github.ealang.pebbletelegramagent.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -35,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -54,7 +62,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import io.github.ealang.pebbletelegramagent.R
 import androidx.compose.ui.window.DialogProperties
 import io.github.ealang.pebbletelegramagent.telegram.TelegramEngine
 import kotlinx.coroutines.delay
@@ -137,7 +147,42 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .imePadding(),
-        topBar = { TopAppBar(title = { Text("Pebble Telegram Agent") }) },
+        topBar = {
+            // Easter egg: the launcher key in the title is a real key. Held, it
+            // draws sunk and sounds the DTMF "0" (dial 0 for the operator) for
+            // as long as the finger is down, like an in-call keypad. Drawn at
+            // 40 dp inside a 48 dp touch target (the Material minimum).
+            val keyInteraction = remember { MutableInteractionSource() }
+            val keyPressed by keyInteraction.collectIsPressedAsState()
+            val tone = remember { ToneGenerator(AudioManager.STREAM_MUSIC, 80) }
+            DisposableEffect(tone) { onDispose { tone.release() } }
+            LaunchedEffect(keyPressed) {
+                if (keyPressed) tone.startTone(ToneGenerator.TONE_DTMF_0) else tone.stopTone()
+            }
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(
+                                if (keyPressed) R.drawable.ic_operator_key_pressed
+                                else R.drawable.ic_operator_key,
+                            ),
+                            contentDescription = "Operator key",
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clickable(
+                                    interactionSource = keyInteraction,
+                                    indication = null,
+                                    onClick = {},
+                                )
+                                .padding(4.dp),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text("Pebble Operator")
+                    }
+                },
+            )
+        },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
