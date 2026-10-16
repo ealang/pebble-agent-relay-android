@@ -154,9 +154,11 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
             // 40 dp inside a 48 dp touch target (the Material minimum).
             val keyInteraction = remember { MutableInteractionSource() }
             val keyPressed by keyInteraction.collectIsPressedAsState()
-            // Volume is 0-100 in 0.5 dB steps below full scale: 71 is -14.5 dB,
-            // about 60 % of the amplitude of the earlier 80 (-10 dB).
-            val tone = remember { ToneGenerator(AudioManager.STREAM_MUSIC, 71) }
+            // Volume is 0-100 in 0.5 dB steps below full scale: 47 is -26.5 dB,
+            // picked by ear with a test slider. Perceived loudness roughly
+            // halves every -10 dB, so it sounds a bit under half as loud as
+            // the earlier 71 (-14.5 dB).
+            val tone = remember { ToneGenerator(AudioManager.STREAM_MUSIC, 47) }
             DisposableEffect(tone) { onDispose { tone.release() } }
             LaunchedEffect(keyPressed) {
                 if (keyPressed) tone.startTone(ToneGenerator.TONE_DTMF_0) else tone.stopTone()
