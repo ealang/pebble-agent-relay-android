@@ -1,4 +1,4 @@
-# Pebble Telegram Agent
+# Pebble Operator
 
 Forwards dictated messages from a Pebble watch to a Telegram chat of your
 choice. The watch is the microphone; this app is the pipe.

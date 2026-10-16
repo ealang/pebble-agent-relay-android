@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "pebble-telegram-agent"
+rootProject.name = "pebble-operator"
 include(":app")
