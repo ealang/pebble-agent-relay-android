@@ -360,7 +360,7 @@ private fun ServerHeader(state: ScreenState, failing: Boolean, actions: ScreenAc
         Column(Modifier.weight(1f)) {
             Text("Webhook server", style = MaterialTheme.typography.titleLarge)
             when {
-                !state.serverWanted -> StatusLine("Off — nothing is listening.")
+                !state.serverWanted -> StatusLine("Off — the webhook server is not needed for the Pebble app.")
                 state.serverRunning ->
                     StatusLine("Listening on 127.0.0.1:${state.port} (POST /index).")
                 // Bind failures keep the service alive and retrying, so they
