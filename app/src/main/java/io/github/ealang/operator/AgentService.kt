@@ -59,7 +59,16 @@ class AgentService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /**
+     * The newest start Android has delivered. Stops quote it so that a start
+     * already queued behind the stop wins (see [Service.stopSelf]): a plain
+     * stopSelf() would let that start bind the socket and then tear the
+     * service down underneath it.
+     */
+    private var latestStartId = 0
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         if (intent?.action == ACTION_STOP) {
             // "Stop" turns the listener off; delivery is not the user's to
             // stop. If the queue still holds work the service stays up just
@@ -71,7 +80,7 @@ class AgentService : Service() {
             server = null
             running = false
             if (queueIsEmpty()) {
-                stopSelf()
+                stopSelf(startId)
                 return START_NOT_STICKY
             }
             baseText = DELIVERING_TEXT
@@ -215,7 +224,7 @@ class AgentService : Service() {
         // A racing enqueue is safe: the ingress always calls start() after
         // enqueueing, and that intent recreates the service.
         if (!Config(this).enabled && queueIsEmpty()) {
-            stopSelf()
+            stopSelf(latestStartId)
             return
         }
         // Success is silent; the notification only ever gains a failure
