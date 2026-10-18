@@ -39,8 +39,11 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context, intent: Intent) = bump()
     }
 
+    // Granted or not, the server starts: since Android 13 a foreground
+    // service runs fine without notification permission, its notification
+    // just never shows in the shade.
     private val requestNotifications =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { startServer() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,15 +52,6 @@ class MainActivity : ComponentActivity() {
         // offers no opt-out; asking for it here just makes every version
         // behave the way the newest one will. The layout handles the insets.
         enableEdgeToEdge()
-
-        // The notification is a requirement of the foreground service; ask
-        // once up front so flipping the toggle later isn't interrupted.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            requestNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-        }
 
         // Bring the Telegram client up for the auth flow even when the
         // service isn't running yet — but only once the Keystore has been
@@ -180,9 +174,31 @@ class MainActivity : ComponentActivity() {
 
     // ------------------------------ actions ------------------------------
 
+    /**
+     * Notification permission is asked for here, the first time the server
+     * is switched on, and nowhere else: the notification belongs to the
+     * webhook service, and someone using only the Pebble app never needs
+     * it.
+     */
     private fun toggleServer(wantOn: Boolean) {
         Config(this).enabled = wantOn
-        if (wantOn) AgentService.start(this) else AgentService.stop(this)
+        if (!wantOn) {
+            AgentService.stop(this)
+            bumpSoon()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            startServer()
+        }
+    }
+
+    private fun startServer() {
+        AgentService.start(this)
         bumpSoon()
     }
 
