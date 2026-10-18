@@ -37,6 +37,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -436,8 +439,10 @@ private fun ServerSettingsCard(state: ScreenState, failing: Boolean, actions: Sc
  * The values the Pebble app's webhook page asks for, laid out to mirror
  * that page field for field (see its "Webhook URL" and "Headers" sections)
  * so filling it in is pure transcription: tap a box here, paste into the
- * matching box there.
+ * matching box there. Its "What to send" choice sits where that page puts
+ * it, greyed out: nothing to copy, just the setting to pick there.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CopySettingsCard(state: ScreenState) {
     SectionCard("Copy webhook settings") {
@@ -449,6 +454,28 @@ private fun CopySettingsCard(state: ScreenState) {
 
         FieldLabel("Webhook URL")
         CopyBox("http://127.0.0.1:${state.port}/index", "webhook URL")
+
+        // The Pebble app's segmented row, same labels and order. It defaults
+        // to Recording, which the server rejects; Transcription is the one
+        // to pick. Disabled greys the text, but Material also fades the
+        // outline to near nothing; the border is kept at full strength so
+        // the boxes read like the ones above.
+        FieldLabel("What to send")
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            val modes = listOf("Recording", "Transcription", "Both")
+            modes.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = mode == "Transcription",
+                    onClick = {},
+                    enabled = false,
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
+                    colors = SegmentedButtonDefaults.colors(
+                        disabledActiveBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledInactiveBorderColor = MaterialTheme.colorScheme.outline,
+                    ),
+                ) { Text(mode) }
+            }
+        }
 
         FieldLabel("Headers")
         Row(
