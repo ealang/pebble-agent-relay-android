@@ -103,6 +103,11 @@ class Config(context: Context) {
         get() = prefs.getString(KEY_START_FAILURE, null)
         set(value) = prefs.edit().putString(KEY_START_FAILURE, value).apply()
 
+    /** Timestamp of the newest process exit already copied into the activity log. */
+    var lastReportedExit: Long
+        get() = prefs.getLong(KEY_REPORTED_EXIT, 0L)
+        set(value) = prefs.edit().putLong(KEY_REPORTED_EXIT, value).apply()
+
     private fun generateToken(): String {
         val bytes = ByteArray(24)
         SecureRandom().nextBytes(bytes)
@@ -114,6 +119,7 @@ class Config(context: Context) {
         private const val KEY_TOKEN = "token"
         private const val KEY_ENABLED = "enabled"
         private const val KEY_START_FAILURE = "last_start_failure"
+        private const val KEY_REPORTED_EXIT = "last_reported_exit"
         private const val KEY_TG_CHAT = "telegram_chat_id"
         private const val KEY_TG_CHAT_TITLE = "telegram_chat_title"
         private const val KEY_TG_DB_KEY = "telegram_db_key"

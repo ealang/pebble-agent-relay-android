@@ -1,5 +1,7 @@
 package io.github.ealang.operator
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -13,6 +15,9 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import io.github.ealang.operator.log.DebugLog
 import io.github.ealang.operator.pipeline.DrainReport
 import io.github.ealang.operator.pipeline.MessageStore
@@ -162,6 +167,7 @@ class AgentService : Service() {
 
         val store = MessageStore(filesDir).also { store = it }
         val log = DebugLog(filesDir).also { debugLog = it }
+        reportProcessExits(log)
         gate = RetryGate(main) { worker?.wake() }
 
         val workerLog = object : PipelineWorker.PipelineLog {
@@ -192,6 +198,55 @@ class AgentService : Service() {
         activeStore = store
         activeWorker = worker
         activeLog = log
+    }
+
+    /**
+     * Android's own record of how this process last ended, copied into the
+     * activity log once per exit. The service cannot log its own death, so
+     * this is the only account of one. Exits of an idle, cached process are
+     * routine housekeeping and skipped; anything that ended the process
+     * while it was running the service or the screen gets a line.
+     */
+    private fun reportProcessExits(log: DebugLog) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        val config = Config(this)
+        val exits = try {
+            getSystemService(ActivityManager::class.java)
+                .getHistoricalProcessExitReasons(packageName, 0, 10)
+        } catch (e: Exception) {
+            return
+        }
+        val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        exits.filter { it.timestamp > config.lastReportedExit }
+            .filter { it.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_SERVICE }
+            .sortedBy { it.timestamp }
+            .forEach { exit ->
+                val detail = listOfNotNull(
+                    "at ${stamp.format(Date(exit.timestamp))}",
+                    exit.description?.takeIf { it.isNotBlank() },
+                ).joinToString(" — ")
+                log.record("app ended by ${exitReason(exit.reason)}", detail)
+            }
+        exits.maxOfOrNull { it.timestamp }?.let { config.lastReportedExit = it }
+    }
+
+    private fun exitReason(reason: Int): String = when (reason) {
+        ApplicationExitInfo.REASON_LOW_MEMORY -> "low memory"
+        ApplicationExitInfo.REASON_CRASH -> "a crash"
+        ApplicationExitInfo.REASON_CRASH_NATIVE -> "a native crash"
+        ApplicationExitInfo.REASON_ANR -> "not responding"
+        ApplicationExitInfo.REASON_SIGNALED -> "a signal"
+        ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "excessive resource use"
+        ApplicationExitInfo.REASON_USER_REQUESTED -> "the user (swiped away or force stopped)"
+        ApplicationExitInfo.REASON_USER_STOPPED -> "the user profile stopping"
+        ApplicationExitInfo.REASON_PERMISSION_CHANGE -> "a permission change"
+        ApplicationExitInfo.REASON_PACKAGE_UPDATED -> "an app update"
+        ApplicationExitInfo.REASON_PACKAGE_STATE_CHANGE -> "a package state change"
+        ApplicationExitInfo.REASON_FREEZER -> "the freezer"
+        ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "a dependency dying"
+        ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "a start-up failure"
+        ApplicationExitInfo.REASON_EXIT_SELF -> "exiting itself"
+        else -> "Android (reason $reason)"
     }
 
     private fun stopPipeline() {
