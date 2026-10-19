@@ -3,6 +3,7 @@ package io.github.ealang.operator.server
 import android.util.Log
 import fi.iki.elonen.NanoHTTPD
 import io.github.ealang.operator.pipeline.Meta
+import java.io.ByteArrayInputStream
 import org.json.JSONObject
 
 /**
@@ -36,7 +37,12 @@ class WebhookServer(
 
     final override fun serve(session: IHTTPSession): Response {
         val response = handle(session)
-        log("${session.method} ${session.uri} → ${response.status.description}")
+        // One line per request, with the reason when it was turned away:
+        // a wrong token, a recording-only payload and a mistyped path are
+        // the usual setup mistakes, and the debug log is where they show.
+        val why = (response as? Rejection)?.why
+        log("${session.method} ${session.uri} → ${response.status.description}" +
+            (why?.let { " — $it" } ?: ""))
         return response
     }
 
@@ -47,12 +53,16 @@ class WebhookServer(
         // port learns "not here" rather than "token needed". This is the
         // only path; there is no unauthenticated endpoint at all.
         if (uri != PATH) {
-            return json(Response.Status.NOT_FOUND, JSONObject().put("error", "Not found: $uri"))
+            return reject(Response.Status.NOT_FOUND, "Not found: $uri", "no such path")
         }
 
-        if (!authorized(session)) {
+        val header = session.headers["authorization"] // NanoHTTPD lowercases names
+        if (header == null) {
+            return reject(Response.Status.UNAUTHORIZED, "Unauthorized", "no Authorization header")
+        }
+        if (!constantTimeEquals(header, "Bearer $token")) {
             Log.w(TAG, "Rejected an unauthorized request from ${session.remoteIpAddress}")
-            return json(Response.Status.UNAUTHORIZED, JSONObject().put("error", "Unauthorized"))
+            return reject(Response.Status.UNAUTHORIZED, "Unauthorized", "wrong token")
         }
 
         return webhook(session)
@@ -60,18 +70,12 @@ class WebhookServer(
 
     private fun webhook(session: IHTTPSession): Response {
         if (session.method != Method.POST) {
-            return json(
-                Response.Status.METHOD_NOT_ALLOWED,
-                JSONObject().put("error", "POST only"),
-            )
+            return reject(Response.Status.METHOD_NOT_ALLOWED, "POST only")
         }
 
         val length = session.headers["content-length"]?.toLongOrNull() ?: 0
         if (length > MAX_BODY_BYTES) {
-            return json(
-                Response.Status.PAYLOAD_TOO_LARGE,
-                JSONObject().put("error", "body too large"),
-            )
+            return reject(Response.Status.PAYLOAD_TOO_LARGE, "body too large")
         }
 
         // For multipart, parseBody spills file parts (an attached recording,
@@ -82,17 +86,14 @@ class WebhookServer(
             session.parseBody(files)
         } catch (e: Exception) {
             Log.w(TAG, "Unreadable webhook body", e)
-            return json(Response.Status.BAD_REQUEST, JSONObject().put("error", "unreadable body"))
+            return reject(Response.Status.BAD_REQUEST, "unreadable body")
         }
 
         val text = session.parameters["transcription"]?.firstOrNull()?.trim()
         if (text.isNullOrBlank()) {
             // This app forwards text; it cannot transcribe. Audio-only
             // payloads are affirmatively rejected so the sender knows.
-            return json(
-                Response.Status.BAD_REQUEST,
-                JSONObject().put("error", "no transcription present"),
-            )
+            return reject(Response.Status.BAD_REQUEST, "no transcription present")
         }
 
         val meta = Meta(
@@ -112,17 +113,8 @@ class WebhookServer(
             json(Response.Status.OK, JSONObject().put("status", "queued"))
         } catch (e: Exception) {
             Log.e(TAG, "Could not enqueue a webhook message", e)
-            json(
-                Response.Status.INTERNAL_ERROR,
-                JSONObject().put("error", "could not queue the message"),
-            )
+            reject(Response.Status.INTERNAL_ERROR, "could not queue the message")
         }
-    }
-
-    private fun authorized(session: IHTTPSession): Boolean {
-        // NanoHTTPD lowercases header names.
-        val header = session.headers["authorization"] ?: return false
-        return constantTimeEquals(header, "Bearer $token")
     }
 
     /**
@@ -142,6 +134,20 @@ class WebhookServer(
 
     private fun json(status: Response.Status, body: JSONObject): Response =
         newFixedLengthResponse(status, "application/json", body.toString())
+
+    /**
+     * An error reply that also carries, for the log only, why it was sent.
+     * [error] goes to the sender as `{"error": …}`; [why] defaults to it,
+     * and differs where the log can afford to be plainer than the reply
+     * (the 401 says "Unauthorized" to the wire, "wrong token" to the log).
+     */
+    private fun reject(status: Response.Status, error: String, why: String = error): Response {
+        val bytes = JSONObject().put("error", error).toString().toByteArray(Charsets.UTF_8)
+        return Rejection(status, bytes, why)
+    }
+
+    private class Rejection(status: Response.Status, body: ByteArray, val why: String) :
+        Response(status, "application/json", ByteArrayInputStream(body), body.size.toLong())
 
     companion object {
         private const val TAG = "pebble-operator"
