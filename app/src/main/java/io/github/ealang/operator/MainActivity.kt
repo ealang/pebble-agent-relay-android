@@ -240,6 +240,6 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val LOG_DIALOG_LINES = 50
+        private const val LOG_DIALOG_LINES = 100
     }
 }

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
@@ -28,8 +30,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +67,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -68,6 +76,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import io.github.ealang.operator.R
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.ealang.operator.telegram.TelegramEngine
 import kotlinx.coroutines.delay
@@ -131,17 +140,16 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
         }
     }
 
-    // Tab layout: one concern per tab — Status (queue
-    // counters, failures, setup issues), Telegram (account + destination),
-    // Index webhook (the server the Pebble index talks to). Survives
+    // Tab layout: one concern per tab — Telegram (account + destination),
+    // Index webhook (the server the Pebble index talks to). Telegram first
+    // because it is the one everybody sets up; the Status tab that used to
+    // open the app is gone: counters and the log are
+    // debugging aids, and greeting a fresh install with them, plus setup
+    // "issues" in red, was clutter before anything had gone wrong. They
+    // live behind the overflow menu as the debug log now. Survives
     // rotation via rememberSaveable, same shell pattern throughout.
-    var tab by rememberSaveable { mutableIntStateOf(TAB_STATUS) }
-
-    // Setup issues only — states the user has to fix once, not transient
-    // ones like being offline, which resolve themselves and would make the
-    // card (and the tab dots) flap.
-    val issues = screenIssues(state)
-    val flaggedTabs = issues.map { it.tab }.toSet()
+    var tab by rememberSaveable { mutableIntStateOf(TAB_TELEGRAM) }
+    var showDebugLog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         // The app draws edge to edge, so the keyboard is an inset like any
@@ -188,26 +196,37 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
                         Text("Pebble Operator")
                     }
                 },
+                actions = {
+                    var menuOpen by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Debug log") },
+                            onClick = {
+                                menuOpen = false
+                                showDebugLog = true
+                            },
+                        )
+                    }
+                },
             )
         },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = tab == TAB_STATUS,
-                    onClick = { tab = TAB_STATUS },
-                    icon = { Icon(Icons.Filled.Info, contentDescription = null) },
-                    label = { Text("Status") },
-                )
-                NavigationBarItem(
                     selected = tab == TAB_TELEGRAM,
                     onClick = { tab = TAB_TELEGRAM },
-                    icon = { TabIcon(TelegramIcon, TAB_TELEGRAM in flaggedTabs) },
+                    icon = { TabIcon(TelegramIcon, flagged = false) },
                     label = { Text("Telegram") },
                 )
+                // The only tab dot left: the server failing to start is the
+                // one state that is broken rather than merely not set up yet.
                 NavigationBarItem(
                     selected = tab == TAB_INDEX,
                     onClick = { tab = TAB_INDEX },
-                    icon = { TabIcon(IndexIcon, TAB_INDEX in flaggedTabs) },
+                    icon = { TabIcon(IndexIcon, serverFailing(state)) },
                     label = { Text("Index Webhook") },
                 )
             }
@@ -226,10 +245,6 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (tab) {
-                TAB_STATUS -> {
-                    IssuesCard(issues, onNavigate = { tab = it })
-                    ActivityCard(state, actions)
-                }
                 TAB_TELEGRAM -> {
                     TelegramAuthCard(state, actions)
                     DestinationChatCard(state, actions)
@@ -238,11 +253,14 @@ fun MainScreen(state: ScreenState, actions: ScreenActions, onPoll: () -> Unit) {
             }
         }
     }
+
+    if (showDebugLog) {
+        DebugLogScreen(state, actions) { showDebugLog = false }
+    }
 }
 
-private const val TAB_STATUS = 0
-private const val TAB_TELEGRAM = 1
-private const val TAB_INDEX = 2
+private const val TAB_TELEGRAM = 0
+private const val TAB_INDEX = 1
 
 /**
  * A tab icon that gains a red dot to its left when the tab has a setup
@@ -269,53 +287,12 @@ private fun TabIcon(image: ImageVector, flagged: Boolean) {
     }
 }
 
-// ------------------------------- issues -------------------------------
-
-/** A setup problem, worded for the user, pointing at the tab that fixes it. */
-private class Issue(val text: String, val tab: Int)
-
-/**
- * The conditions the user must act on before messages can flow. Transient
- * states — offline, a chat search failing — are deliberately absent: they
- * fix themselves, and an alert nobody can act on teaches people to ignore
- * the card.
- */
-private fun screenIssues(state: ScreenState): List<Issue> = buildList {
-    if (state.telegramConfigured &&
-        state.telegramHealth == TelegramEngine.Health.NOT_AUTHENTICATED
-    ) {
-        add(Issue("Telegram is logged out", TAB_TELEGRAM))
-    }
-    if (state.telegramConfigured && state.telegramChatId == null) {
-        add(Issue("No Telegram destination chat is set", TAB_TELEGRAM))
-    }
-    if (serverFailing(state)) {
-        add(Issue("The webhook server is failing to start", TAB_INDEX))
-    }
-}
-
-/** Hidden entirely when there is nothing wrong; each row jumps to the fix. */
-@Composable
-private fun IssuesCard(issues: List<Issue>, onNavigate: (Int) -> Unit) {
-    if (issues.isEmpty()) return
-    SectionCard("Issues") {
-        issues.forEach { issue ->
-            TextButton(
-                onClick = { onNavigate(issue.tab) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Row(Modifier.weight(1f)) { WarnText(issue.text) }
-            }
-        }
-    }
-}
-
 // ------------------------------- server -------------------------------
 
 /**
  * Whether the listener is on but not actually listening for a reason the
- * user has to act on. Same test the Issues card uses, so the tab dot, the
- * header line and the settings card's warning icon all agree.
+ * user has to act on. One test, so the tab dot, the header line and the
+ * settings card's warning icon all agree.
  */
 private fun serverFailing(state: ScreenState): Boolean =
     state.serverWanted && !state.serverRunning &&
@@ -538,39 +515,85 @@ private fun CopyBox(value: String, what: String, modifier: Modifier = Modifier) 
     )
 }
 
-// ------------------------------- status -------------------------------
+// ------------------------------ debug log ------------------------------
 
 /**
- * Counters and the way into the activity log, one card.
- * The log records everything the app does — both front doors, the queue,
- * Telegram delivery, the listener — so it is the app's activity log, not
- * the server's, and it lives here on the Status tab.
+ * The old Status tab, whole, behind the overflow menu:
+ * counters, failure handling and the log, which records everything the
+ * app does — both front doors, the queue, Telegram delivery, the listener.
+ * A debugging aid, not a page most people open, so it is a full-screen
+ * dialog over the main screen rather than a tab: back or the X closes it.
+ * Full-screen because a log wants the height; the alert-sized dialog the
+ * log used to open in showed six lines.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ActivityCard(state: ScreenState, actions: ScreenActions) {
-    var showLog by remember { mutableStateOf(false) }
+private fun DebugLogScreen(state: ScreenState, actions: ScreenActions, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Debug log") },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close")
+                        }
+                    },
+                    actions = {
+                        if (state.logTail.isNotEmpty()) {
+                            TextButton(onClick = {
+                                // Copied as shown: newest first, one line per event.
+                                clipboard.setText(AnnotatedString(state.logTail.joinToString("\n")))
+                            }) { Text("Copy") }
+                        }
+                    },
+                )
+            },
+        ) { insets ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(insets)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Long-press the counters to reset Sent. Pending and Failed
+                // are live counts of real queued items, not counters;
+                // clearing those means discarding messages, which the
+                // buttons below do as a batch.
+                SectionCard("Messages", onLongClick = actions.resetSentTotal) {
+                    KeyValue("Sent", state.sentTotal.toString())
+                    KeyValue("Pending", state.pendingCount.toString())
+                    KeyValue("Failed", state.failedCount.toString())
+                    // Failures are handled as a batch; the log has the reasons.
+                    if (state.failedCount > 0) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = actions.retryAllFailed) { Text("Retry all") }
+                            TextButton(onClick = actions.discardAllFailed) { Text("Discard all") }
+                        }
+                    }
+                }
 
-    // Long-press anywhere on the card resets the Sent counter. Pending and
-    // Failed are live counts of real queued items, not counters; clearing
-    // those means discarding messages, which the buttons below do as a batch.
-    SectionCard("Activity", onLongClick = actions.resetSentTotal) {
-        KeyValue("Sent messages", state.sentTotal.toString())
-        KeyValue("Pending messages", state.pendingCount.toString())
-        KeyValue("Failed messages", state.failedCount.toString())
-
-        // Failures are handled as a batch; the activity log has the reasons.
-        if (state.failedCount > 0) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = actions.retryAllFailed) { Text("Retry all") }
-                TextButton(onClick = actions.discardAllFailed) { Text("Discard all") }
+                if (state.logTail.isEmpty()) {
+                    Text("No activity recorded yet.", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(state.logTail) { line ->
+                            Text(
+                                line,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
-
-        TextButton(onClick = { showLog = true }) { Text("Activity log") }
-    }
-
-    if (showLog) {
-        LogDialog("Activity log", state.logTail) { showLog = false }
     }
 }
 
@@ -583,29 +606,22 @@ private fun TelegramAuthCard(state: ScreenState, actions: ScreenActions) {
         // never which step of a login is pending, which is the dialog's
         // job. Offline claims nothing else: an unreachable server cannot
         // confirm the session is still good, so "connected as …" alongside
-        // "offline" would be a contradiction, not extra detail.
-        val (line, fine) = when {
+        // "offline" would be a contradiction, not extra detail. Plain text
+        // in every state: not logged in yet is where a
+        // fresh install starts, not a fault, and red at first open taught
+        // nothing. The warning styling is kept for things that break.
+        val line = when {
             // Only in a build made without credentials — nothing the user
             // can fix on the phone, so it names the build.
-            !state.telegramConfigured ->
-                "This build has no Telegram credentials." to false
+            !state.telegramConfigured -> "This build has no Telegram credentials."
             state.telegramHealth == TelegramEngine.Health.NOT_AUTHENTICATED ->
-                "Not authenticated — log in below." to false
+                "Not logged in — log in below."
             state.telegramHealth == TelegramEngine.Health.OFFLINE ->
-                "Offline — messages queue until the network is back." to false
-            state.telegramChatId == null ->
-                "Connected, but no destination chat is set below." to false
-            // Same shape as the destination card's "Sending to: …" line —
-            // plain text, no colour of its own. Green
-            // was a second idiom for one idea; absence of the warning is
-            // the signal that all is well.
-            else -> "Logged in as: ${state.telegramAccount ?: "unknown account"}" to true
+                "Offline — messages queue until the network is back."
+            state.telegramChatId == null -> "Logged in, but no destination chat is set below."
+            else -> "Logged in as: ${state.telegramAccount ?: "unknown account"}"
         }
-        if (fine) {
-            Text(line, style = MaterialTheme.typography.bodySmall)
-        } else {
-            WarnText(line, MaterialTheme.typography.bodySmall)
-        }
+        Text(line, style = MaterialTheme.typography.bodySmall)
 
         // Login lives in a dialog, not an always-there field: Log in
         // whenever anything short of a session exists — a stale login
