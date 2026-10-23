@@ -71,6 +71,8 @@ class PipelineWorker(
     }
 
     internal fun drain(): DrainReport {
+        store.sweep()
+
         var completed = 0
         var newlyFailed = 0
         var blockedOn: String? = null
@@ -86,7 +88,7 @@ class PipelineWorker(
                 // thread — and not knowing what it was, we must not assume
                 // it will fix itself.
                 Log.e(TAG, "Unexpected failure processing ${item.name}", e)
-                StepResult.Permanent("unexpected: ${e::class.java.simpleName}")
+                StepResult.Permanent("unexpected: ${e::class.java.simpleName}: ${e.message}")
             }
 
             when (result) {

@@ -17,8 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * only code allowed to touch `files/message-queue/`. It keeps no in-memory
  * cache — every answer is read from disk, so it can never fall out of sync
  * and never needs invalidating. Threading is single-writer: any thread may
- * [enqueue] (the rename is the handover) and any thread may read;
- * everything else is called from the worker's thread only.
+ * [enqueue] (the meta file appearing is the handover) and any thread may
+ * read; everything else is called from the worker's thread only.
  *
  * Takes a plain root directory rather than a Context so it can be exercised
  * on the JVM against a temp dir.
@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger
 class MessageStore(root: File) {
 
     private val queueDir = File(root, "message-queue")
-    private val tmpDir = File(queueDir, "tmp")
     private val failedDir = File(queueDir, "failed")
     private val seenDir = File(queueDir, "seen")
     private val seq: AtomicInteger
@@ -36,16 +35,10 @@ class MessageStore(root: File) {
         failedDir.mkdirs()
         seenDir.mkdirs()
 
-        // Leftovers in tmp/ are items half-written when the process died.
-        // The sender never got its 200 for them, so deleting is safe — the
-        // watch re-sends what was never acknowledged.
-        tmpDir.listFiles()?.forEach { it.deleteRecursively() }
-        tmpDir.mkdirs()
-
         // Re-seed the sequence from the largest existing name so a restart
         // cannot mint a name that sorts before items already queued.
         seq = AtomicInteger(
-            (itemDirs(queueDir) + itemDirs(failedDir))
+            (dirs(queueDir) + dirs(failedDir))
                 .maxOfOrNull { it.name.substringAfterLast('-').toIntOrNull() ?: 0 }
                 ?: 0,
         )
@@ -72,20 +65,16 @@ class MessageStore(root: File) {
     // ------------------------------ enqueue ------------------------------
 
     /**
-     * Durably admit one message. Built in `tmp/`, fsynced, then renamed
-     * into the queue in one atomic step — a reader can never see a
-     * half-written item. Only after this returns may the webhook answer 200.
+     * Durably admit one message. The item's directory is created in place;
+     * it does not exist to readers until `meta.json` appears, and the meta
+     * is written to a side file and renamed in, so it appears whole or not
+     * at all. Only after this returns may the webhook answer 200.
      */
     @Throws(IOException::class)
     fun enqueue(meta: Meta): Item {
-        val name = newName(meta.receivedAtMs)
-        val staging = File(tmpDir, name)
-        if (!staging.mkdirs()) throw IOException("could not create $staging")
-
-        writeSynced(File(staging, META), meta.toJson().toString(2).toByteArray())
-
-        val home = File(queueDir, name)
-        if (!staging.renameTo(home)) throw IOException("could not commit $name")
+        val home = File(queueDir, newName(meta.receivedAtMs))
+        if (!home.mkdirs()) throw IOException("could not create $home")
+        writeSynced(File(home, META), meta.toJson().toString(2).toByteArray())
         return Item(home)
     }
 
@@ -99,11 +88,10 @@ class MessageStore(root: File) {
      * timestamp and a hash of the text (same stamp with different text is a
      * different message). Creating the marker is the atomic claim — no lock,
      * no read-modify-write, and thread-safe like [enqueue]. Returns null for
-     * a repeat. Markers older than [SEEN_RETENTION_MS] are pruned here.
+     * a repeat. Markers older than [RETENTION_MS] go in [sweep].
      */
     @Throws(IOException::class)
     fun enqueueOnce(meta: Meta): Item? {
-        pruneSeen()
         val marker = File(seenDir, receiptName(meta))
         if (!marker.createNewFile()) return null
         return try {
@@ -122,13 +110,6 @@ class MessageStore(root: File) {
         return "${meta.client ?: "unknown"}-${meta.recordedAtMs}-$digest"
     }
 
-    private fun pruneSeen() {
-        val now = System.currentTimeMillis() // same clock that stamps the files
-        seenDir.listFiles()?.forEach {
-            if (now - it.lastModified() > SEEN_RETENTION_MS) it.delete()
-        }
-    }
-
     // ------------------------------ reads ------------------------------
 
     /** Every queued item, oldest first — names are UTC stamps, so sorted = FIFO. */
@@ -137,6 +118,22 @@ class MessageStore(root: File) {
     fun failed(): List<Item> = itemDirs(failedDir).sortedBy { it.name }.map { Item(it) }
 
     // ------------------------- steps (worker only) -------------------------
+
+    /**
+     * Housekeeping, and the only place any of it happens. Drops item
+     * directories that never got their meta — an enqueue cut short by a
+     * process death — and receipt markers past their use. Both only once
+     * they are older than [RETENTION_MS], so an enqueue in flight on another
+     * thread can never be mistaken for a leftover.
+     */
+    fun sweep(now: Long = System.currentTimeMillis()) {
+        (dirs(queueDir) + dirs(failedDir))
+            .filter { !File(it, META).exists() && now - it.lastModified() > RETENTION_MS }
+            .forEach { it.deleteRecursively() }
+        seenDir.listFiles()?.forEach {
+            if (now - it.lastModified() > RETENTION_MS) it.delete()
+        }
+    }
 
     @Throws(IOException::class)
     fun writeProcessorState(item: Item, processor: String, state: JSONObject) =
@@ -177,9 +174,13 @@ class MessageStore(root: File) {
 
     // ------------------------------ internals ------------------------------
 
+    /** Committed items: a directory is one only once its meta is in place. */
     private fun itemDirs(parent: File): List<File> =
+        dirs(parent).filter { File(it, META).exists() }
+
+    private fun dirs(parent: File): List<File> =
         parent.listFiles()?.filter {
-            it.isDirectory && it.name != "tmp" && it.name != "failed" && it.name != "seen"
+            it.isDirectory && it.name != "failed" && it.name != "seen"
         } ?: emptyList()
 
     private fun newName(atMs: Long): String {
@@ -189,20 +190,29 @@ class MessageStore(root: File) {
         return "%s-%03d".format(Locale.US, stamp, seq.incrementAndGet())
     }
 
-    /** Write + fsync, so "enqueued" means "on flash", not "in a page cache". */
+    /**
+     * Write + fsync into a side file, then rename it into place: "written"
+     * means on flash, and a reader sees the whole file or no file.
+     */
     @Throws(IOException::class)
     private fun writeSynced(file: File, bytes: ByteArray) {
-        FileOutputStream(file).use {
+        val part = File(file.path + ".part")
+        FileOutputStream(part).use {
             it.write(bytes)
             it.fd.sync()
         }
+        if (!part.renameTo(file)) throw IOException("could not commit $file")
     }
 
     companion object {
         private const val TAG = "pebble-operator"
 
-        /** The watch retries within seconds or minutes; a day is generous. */
-        private const val SEEN_RETENTION_MS = 24L * 60 * 60 * 1000
+        /**
+         * How old a receipt or an uncommitted item must be before [sweep]
+         * takes it. The watch retries within seconds or minutes, and an
+         * enqueue takes milliseconds; a day is generous for both.
+         */
+        private const val RETENTION_MS = 24L * 60 * 60 * 1000
         private const val META = "meta.json"
     }
 }

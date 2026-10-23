@@ -2,6 +2,7 @@ package io.github.ealang.operator.pipeline
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -52,16 +53,31 @@ class MessageStoreTest {
     }
 
     @Test
-    fun `leftovers in tmp are swept on startup`() {
-        File(temp.root, "message-queue/tmp/half-written").mkdirs()
-
+    fun `an item is invisible until its meta is committed`() {
         val store = MessageStore(temp.root)
+        val dir = File(temp.root, "message-queue/20231114-221320-000-001").apply { mkdirs() }
+        File(dir, "meta.json.part").writeText("{")
 
         assertEquals(0, store.pending().size)
-        assertEquals(
-            emptyList<String>(),
-            File(temp.root, "message-queue/tmp").listFiles()!!.map { it.name },
-        )
+        assertEquals(0, store.failed().size)
+    }
+
+    @Test
+    fun `sweep drops uncommitted items only once they are a day old`() {
+        val store = MessageStore(temp.root)
+        val committed = store.enqueue(meta())
+        val fresh = File(temp.root, "message-queue/20231114-221320-000-002").apply { mkdirs() }
+        val stale = File(temp.root, "message-queue/20231114-221320-000-003").apply { mkdirs() }
+        val staleFailed = File(temp.root, "message-queue/failed/20231114-221320-000-004").apply { mkdirs() }
+        val dayLater = System.currentTimeMillis() + 25L * 60 * 60 * 1000
+        assertTrue(fresh.setLastModified(dayLater))
+
+        store.sweep(now = dayLater)
+
+        assertEquals(committed.name, store.pending().single().name)
+        assertTrue(fresh.exists())
+        assertFalse(stale.exists())
+        assertFalse(staleFailed.exists())
     }
 
     @Test
@@ -138,15 +154,16 @@ class MessageStoreTest {
     }
 
     @Test
-    fun `enqueueOnce forgets receipts after a day`() {
+    fun `sweep forgets receipts after a day`() {
         val store = MessageStore(temp.root)
         val stamped = meta().copy(recordedAtMs = 1_700_000_000_000L)
         assertNotNull(store.enqueueOnce(stamped))
         assertNull(store.enqueueOnce(stamped))
-        // Receipts age by file time, so backdate the marker past a day.
-        File(temp.root, "message-queue/seen").listFiles()!!.forEach {
-            assertTrue(it.setLastModified(System.currentTimeMillis() - 25L * 60 * 60 * 1000))
-        }
+
+        store.sweep()
+        assertNull(store.enqueueOnce(stamped)) // still fresh
+
+        store.sweep(now = System.currentTimeMillis() + 25L * 60 * 60 * 1000)
         assertNotNull(store.enqueueOnce(stamped))
     }
 
