@@ -92,6 +92,7 @@ class ScreenActions(
     val toggleServer: (wantOn: Boolean) -> Unit,
     val savePort: (text: String) -> Unit,
     val regenerateToken: () -> Unit,
+    val requestBatteryExemption: () -> Unit,
     val submitAuthInput: (String) -> Unit,
     val logOut: () -> Unit,
     val restartLogin: () -> Unit,
@@ -114,6 +115,7 @@ class ScreenState(
     val token: String,
     val lastStartFailure: String?,
     val bindFailed: Boolean,
+    val batteryExempt: Boolean,
     val sentTotal: Int,
     val pendingCount: Int,
     val failedCount: Int,
@@ -311,7 +313,27 @@ private fun IndexWebhookTab(state: ScreenState, actions: ScreenActions) {
     ServerHeader(state, failing, actions)
     if (!state.serverWanted) return
     CopySettingsCard(state)
+    if (!state.batteryExempt) BatteryCard(actions)
     ServerSettingsCard(state, failing, actions)
+}
+
+/**
+ * Shown only while the app is subject to battery optimization — granted,
+ * the card is gone. The dialog it opens is the one the switch already asks
+ * for; this is the way back to it after a "Deny".
+ */
+@Composable
+private fun BatteryCard(actions: ScreenActions) {
+    SectionCard("Battery optimization") {
+        Text(
+            "Android may stop this app to save battery. Exempting the app " +
+                "from battery optimization keeps it running.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        TextButton(onClick = actions.requestBatteryExemption) {
+            Text("Allow running in the background")
+        }
+    }
 }
 
 /**

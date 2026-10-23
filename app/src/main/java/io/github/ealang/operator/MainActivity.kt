@@ -1,14 +1,18 @@
 package io.github.ealang.operator
 
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -66,6 +70,7 @@ class MainActivity : ComponentActivity() {
             toggleServer = ::toggleServer,
             savePort = ::savePort,
             regenerateToken = ::regenerateToken,
+            requestBatteryExemption = ::requestBatteryExemption,
             submitAuthInput = { TelegramEngine.submitAuthInput(it) },
             logOut = { TelegramEngine.logOut() },
             restartLogin = { TelegramEngine.restartLogin() },
@@ -107,9 +112,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // Whatever took the service down while the screen was away, the
-        // toggle (or a queue left mid-drain) says whether it belongs up.
-        Watchdog.check(this, "app open")
+        AgentService.ensureUp(this)
         val filter = IntentFilter(AgentService.ACTION_STATE_CHANGED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(stateChanged, filter, RECEIVER_NOT_EXPORTED)
@@ -150,6 +153,7 @@ class MainActivity : ComponentActivity() {
             token = if (SecretStore.ready) config.token else "",
             lastStartFailure = config.lastStartFailure,
             bindFailed = AgentService.bindFailed,
+            batteryExempt = batteryExempt(),
             sentTotal = config.sentTotal,
             pendingCount = pending,
             failedCount = failed,
@@ -202,6 +206,34 @@ class MainActivity : ComponentActivity() {
     private fun startServer() {
         AgentService.start(this)
         bumpSoon()
+        if (!batteryExempt()) requestBatteryExemption()
+    }
+
+    /**
+     * Whether the app is on Android's battery-optimization allowlist — the
+     * same list the "Unrestricted" choice in the app's battery settings
+     * edits. Off it, a phone (Samsung above all) may stop the service and
+     * never run the sticky restart; the 2026-10-22 outage was exactly that.
+     */
+    private fun batteryExempt(): Boolean =
+        getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+
+    /**
+     * The system's "let this app always run in the background?" dialog.
+     * Asked whenever the server is switched on while the app is still
+     * optimized — the toggle is flipped rarely, so that is not nagging, and
+     * a user who declined once can change their mind by toggling. The
+     * card on the Index tab offers the same dialog in between.
+     */
+    private fun requestBatteryExemption() {
+        val dialog = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            .setData(Uri.parse("package:$packageName"))
+        try {
+            startActivity(dialog)
+        } catch (e: ActivityNotFoundException) {
+            // Some builds hide the dialog; the list screen is the fallback.
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
     }
 
     private fun savePort(text: String) {

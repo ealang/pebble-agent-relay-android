@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets the app ask to be left off battery optimization, so a kill is
+         followed by Android's restart rather than a "sleeping app". -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Backups are disabled deliberately: the TDLib database on disk is the
          user's logged-in Telegram session, and its encryption key must be
@@ -54,13 +57,6 @@
                 <action android:name="io.rebble.pebblekit2.RECEIVE_DATA_FROM_WATCH" />
             </intent-filter>
         </service>
-
-        <!-- The periodic re-check of the toggle (see Watchdog). The permission
-             restricts binding to the system's job scheduler. -->
-        <service
-            android:name=".WatchdogJob"
-            android:exported="true"
-            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- Not exported: BOOT_COMPLETED and MY_PACKAGE_REPLACED are protected
              broadcasts the system delivers regardless, and nobody else has any
