@@ -107,7 +107,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        AgentService.resumeStranded(this)
+        // Whatever took the service down while the screen was away, the
+        // toggle (or a queue left mid-drain) says whether it belongs up.
+        Watchdog.check(this, "app open")
         val filter = IntentFilter(AgentService.ACTION_STATE_CHANGED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(stateChanged, filter, RECEIVER_NOT_EXPORTED)

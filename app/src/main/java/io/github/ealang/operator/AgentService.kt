@@ -85,6 +85,7 @@ class AgentService : Service() {
             server = null
             running = false
             if (queueIsEmpty()) {
+                Watchdog.cancel(this)
                 stopSelf(startId)
                 return START_NOT_STICKY
             }
@@ -144,7 +145,8 @@ class AgentService : Service() {
             worker?.wake()
         }
 
-        // START_STICKY: if Android reclaims us under memory pressure, come back.
+        // START_STICKY: if Android reclaims us under memory pressure, come
+        // back. That has been seen not to happen; Watchdog is the backstop.
         return START_STICKY
     }
 
@@ -279,6 +281,7 @@ class AgentService : Service() {
         // A racing enqueue is safe: the ingress always calls start() after
         // enqueueing, and that intent recreates the service.
         if (!Config(this).enabled && queueIsEmpty()) {
+            Watchdog.cancel(this)
             stopSelf(latestStartId)
             return
         }
@@ -469,6 +472,9 @@ class AgentService : Service() {
         /** NanoHTTPD's default read timeout; long enough for a keep-alive client to idle. */
         private const val SOCKET_READ_TIMEOUT_MS = 5000
 
+        /** How long after a start request the service counts as "on its way". */
+        private const val START_GRACE_MS = 10_000L
+
         /** The listener is bound and accepting. */
         @Volatile
         var running: Boolean = false
@@ -506,16 +512,39 @@ class AgentService : Service() {
          * unguarded call here takes down whatever was making it, which
          * includes [BootReceiver] running on a broadcast the app cannot
          * decline. The reason is kept where it can outlive the process.
+         * Returns whether Android accepted the request.
+         *
+         * Every start also arms the [Watchdog]: from here on something
+         * wants the service up, and the job stays until the service finds
+         * nothing left to do.
          */
-        fun start(context: Context) {
-            try {
+        fun start(context: Context): Boolean {
+            Watchdog.schedule(context)
+            startRequestedAt = System.currentTimeMillis()
+            return try {
                 context.startForegroundService(Intent(context, AgentService::class.java))
+                true
             } catch (e: Exception) {
                 val reason = "${e::class.java.simpleName}: ${e.message ?: "no detail"}"
                 Log.w(TAG, "Android refused to start the service", e)
                 Config(context).lastStartFailure = "start refused — $reason"
+                false
             }
         }
+
+        /** Whether a service instance is up in this process, listening or draining. */
+        fun isUp(): Boolean = activeWorker != null
+
+        @Volatile
+        private var startRequestedAt = 0L
+
+        /**
+         * A start is asynchronous: between [start] and onStartCommand the
+         * service is not yet up but is on its way, and a check in that
+         * window must not report it down and start it twice.
+         */
+        fun startRequestedRecently(): Boolean =
+            System.currentTimeMillis() - startRequestedAt < START_GRACE_MS
 
         fun stop(context: Context) {
             context.startService(
@@ -574,17 +603,6 @@ class AgentService : Service() {
             // onPipeline ran synchronously on the direct path, so the items
             // are on disk before the service comes up.
             if (activeWorker == null) start(context)
-        }
-
-        /**
-         * Messages on disk with no service to deliver them — left behind by
-         * a process death mid-drain, or by an older build's Retry. Called
-         * when the app comes to the foreground; a no-op when the service is
-         * up or the queue is empty.
-         */
-        fun resumeStranded(context: Context) {
-            if (activeWorker != null) return
-            if (MessageStore(context.filesDir).pending().isNotEmpty()) start(context)
         }
 
         fun discardAllFailed(context: Context) {
