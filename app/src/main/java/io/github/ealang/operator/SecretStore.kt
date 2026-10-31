@@ -7,6 +7,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import androidx.core.content.edit
 import java.security.KeyStore
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -83,20 +84,20 @@ class SecretStore(context: Context) {
             // The key no longer opens this blob. Stale ciphertext would fail
             // this way forever, so clear it and report the secret as unset.
             Log.w(TAG, "Could not decrypt '$name'; treating it as unset", e)
-            prefs.edit().remove(name).apply()
+            prefs.edit { remove(name) }
             null
         }
     }
 
     private fun persist(name: String, value: String?) {
         if (value == null) {
-            prefs.edit().remove(name).apply()
+            prefs.edit { remove(name) }
             return
         }
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val blob = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
-        prefs.edit().putString(name, Base64.encodeToString(blob, Base64.NO_WRAP)).apply()
+        prefs.edit { putString(name, Base64.encodeToString(blob, Base64.NO_WRAP)) }
     }
 
     /** The wrapping key, generated inside the Keystore on first use. */

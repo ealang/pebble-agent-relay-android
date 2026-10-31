@@ -19,6 +19,8 @@
     <application
         android:name=".App"
         android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="Pebble Operator"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
@@ -27,8 +29,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:label="Pebble Operator">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

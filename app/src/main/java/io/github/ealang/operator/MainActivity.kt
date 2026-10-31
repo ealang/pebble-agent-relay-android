@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.net.toUri
 import io.github.ealang.operator.pipeline.MessageStore
 import io.github.ealang.operator.telegram.TelegramEngine
 import io.github.ealang.operator.ui.AppTheme
@@ -227,7 +227,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun requestBatteryExemption() {
         val dialog = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-            .setData(Uri.parse("package:$packageName"))
+            .setData("package:$packageName".toUri())
         try {
             startActivity(dialog)
         } catch (e: ActivityNotFoundException) {

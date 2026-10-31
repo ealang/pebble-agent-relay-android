@@ -2,6 +2,7 @@ package io.github.ealang.operator
 
 import android.content.Context
 import android.util.Base64
+import androidx.core.content.edit
 import io.github.ealang.operator.server.WebhookServer
 import java.security.SecureRandom
 
@@ -30,7 +31,7 @@ class Config(context: Context) {
     /** The webhook listener's port, bound at service start; changing it restarts the service. */
     var port: Int
         get() = prefs.getInt(KEY_PORT, WebhookServer.PORT)
-        set(value) = prefs.edit().putInt(KEY_PORT, value).apply()
+        set(value) = prefs.edit { putInt(KEY_PORT, value) }
 
     var token: String
         get() = secrets.get(KEY_TOKEN)
@@ -42,12 +43,12 @@ class Config(context: Context) {
     /** Whether the user wants the server up — also what the boot receiver checks. */
     var enabled: Boolean
         get() = prefs.getBoolean(KEY_ENABLED, false)
-        set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
+        set(value) = prefs.edit { putBoolean(KEY_ENABLED, value) }
 
     /** The one destination chat, chosen from the picker. */
     var telegramChatId: Long?
         get() = prefs.getLong(KEY_TG_CHAT, 0L).takeIf { it != 0L }
-        set(value) = prefs.edit().putLong(KEY_TG_CHAT, value ?: 0L).apply()
+        set(value) = prefs.edit { putLong(KEY_TG_CHAT, value ?: 0L) }
 
     /**
      * The chosen chat's title, for display only — the id is what sends.
@@ -56,7 +57,7 @@ class Config(context: Context) {
      */
     var telegramChatTitle: String
         get() = prefs.getString(KEY_TG_CHAT_TITLE, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_TG_CHAT_TITLE, value).apply()
+        set(value) = prefs.edit { putString(KEY_TG_CHAT_TITLE, value) }
 
     /**
      * Signature line appended to forwarded messages, on its own line. Read
@@ -66,7 +67,7 @@ class Config(context: Context) {
      */
     var telegramSignature: String
         get() = prefs.getString(KEY_TG_SIGNATURE, DEFAULT_SIGNATURE) ?: ""
-        set(value) = prefs.edit().putString(KEY_TG_SIGNATURE, value.trim()).apply()
+        set(value) = prefs.edit { putString(KEY_TG_SIGNATURE, value.trim()) }
 
     /**
      * Lifetime count of messages confirmed delivered. Persisted because the
@@ -76,7 +77,7 @@ class Config(context: Context) {
      */
     var sentTotal: Int
         get() = prefs.getInt(KEY_SENT_TOTAL, 0)
-        set(value) = prefs.edit().putInt(KEY_SENT_TOTAL, value).apply()
+        set(value) = prefs.edit { putInt(KEY_SENT_TOTAL, value) }
 
     /**
      * TDLib's local-database encryption key, random per install. The
@@ -101,12 +102,12 @@ class Config(context: Context) {
      */
     var lastStartFailure: String?
         get() = prefs.getString(KEY_START_FAILURE, null)
-        set(value) = prefs.edit().putString(KEY_START_FAILURE, value).apply()
+        set(value) = prefs.edit { putString(KEY_START_FAILURE, value) }
 
     /** Timestamp of the newest process exit already copied into the activity log. */
     var lastReportedExit: Long
         get() = prefs.getLong(KEY_REPORTED_EXIT, 0L)
-        set(value) = prefs.edit().putLong(KEY_REPORTED_EXIT, value).apply()
+        set(value) = prefs.edit { putLong(KEY_REPORTED_EXIT, value) }
 
     private fun generateToken(): String {
         val bytes = ByteArray(24)
