@@ -7,12 +7,13 @@ as a launcher would show it. The Pebble icons use the same paper-plane glyph
 (make-drawables.PLANE, without the lens) on a rounded square. Writes
 into art/pebble/:
 
-  menu_icon~color.png   25x25  watch launcher menu, colour platforms. The
-                        launcher shows app icons there as greyscale, so it is
-                        drawn in grey: black border, light-grey interior,
-                        black plane, transparent corners.
-  menu_icon~bw.png      25x25  same with a white interior, hard 1-bit edges,
-                        for the black-and-white platforms (inverting mode)
+  menu_icon~color.png   25x25  watch launcher menu, colour platforms: black
+                        border and plane on a white face, transparent
+                        corners. The launcher shows app icons as greyscale,
+                        so the edges are snapped to the four greys the watch
+                        can show instead of 8-bit anti-aliasing.
+  menu_icon~bw.png      25x25  same with hard 1-bit edges, for the
+                        black-and-white platforms (inverting mode)
   store_icon_80.png     80x80  appstore "small icon"
   store_icon_144.png   144x144 appstore "large icon"
   companion_icon_144.png 144x144 appstore companion-app icon (the Android
@@ -124,11 +125,18 @@ def squircle_svg(plane: str, circle, canvas: float = 25, fill: str = PEBBLE_BLUE
     )
 
 
-def menu_svg(plane: str, circle, interior: str) -> str:
-    """25px launcher icon: black border and plane on the given interior.
-    Colour watches render app menu icons as greyscale, bw watches as
-    inverting 1-bit, so colour would be lost anyway."""
-    return squircle_svg(plane, circle, fill=interior, border_color="#000000", plane_fill="#000000")
+def menu_svg(plane: str, circle) -> str:
+    """25px launcher icon: black border and plane on a white face. Colour
+    watches render app menu icons as greyscale, bw watches as inverting
+    1-bit, so colour would be lost anyway."""
+    return squircle_svg(plane, circle, fill="#FFFFFF", border_color="#000000", plane_fill="#000000")
+
+
+def four_greys(img: Image.Image) -> Image.Image:
+    """Snap every channel, alpha included, to 2 bits (00/55/AA/FF), which is
+    what the SDK does to the PNG at build. Doing it here keeps the file and
+    the watch in agreement and lets the preview show the real edges."""
+    return img.point(lambda v: int(round(v / 85)) * 85)
 
 
 def one_bit(img: Image.Image) -> Image.Image:
@@ -150,8 +158,9 @@ def main() -> None:
         o = size // 4
         circle_mask(full.crop((o, o, o + size, o + size))).save(OUT / name)
 
-    render(menu_svg(plane, circle, "#AAAAAA"), 25).save(OUT / "menu_icon~color.png")
-    one_bit(render(menu_svg(plane, circle, "#FFFFFF"), 25)).save(OUT / "menu_icon~bw.png")
+    menu = render(menu_svg(plane, circle), 25)
+    four_greys(menu).save(OUT / "menu_icon~color.png")
+    one_bit(menu).save(OUT / "menu_icon~bw.png")
     for size in (80, 144):
         render(squircle_svg(plane, circle, canvas=size), size).save(OUT / f"store_icon_{size}.png")
 
