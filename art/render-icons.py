@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Render the Pebble-side icons from the Android launcher drawable.
+"""Render the previews and the Pebble-side icons.
 
-The launcher drawable (app/src/main/res/drawable/ic_launcher_foreground.xml)
-is the single source for the artwork: the plane glyph, colours and watch
-geometry live there. This script reads the glyph out of it, composes the
-Pebble squircle around it and writes the PNGs the watch app and the Rebble
-appstore listing need into art/pebble/:
+The launcher drawable (app/src/main/res/drawable/ic_launcher_foreground.xml,
+written by art/make-launcher-drawable.py) is translated to SVG and rendered
+as a launcher would show it. The Pebble icons use the same paper-plane glyph
+(make-launcher-drawable.PLANE, without the lens) on a rounded square. Writes
+into art/pebble/:
 
   menu_icon~color.png   25x25  watch launcher menu, colour platforms. The
                         launcher shows app icons there as greyscale, so it is
@@ -18,12 +18,11 @@ appstore listing need into art/pebble/:
   companion_icon_144.png 144x144 appstore companion-app icon (the Android
                         launcher icon, circle-masked)
   launcher_preview.png 432x432 the Android icon as a launcher would show it
-  android_launcher_foreground.xml  verbatim copy of the source drawable
 
 Needs cairosvg and Pillow:  python3 -m venv .venv && .venv/bin/pip install cairosvg pillow
 Run from the repo root:     .venv/bin/python art/render-icons.py
 """
-import io, math, shutil, xml.etree.ElementTree as ET
+import importlib.util, io, math, xml.etree.ElementTree as ET
 from pathlib import Path
 
 import cairosvg
@@ -36,30 +35,39 @@ A = "{http://schemas.android.com/apk/res/android}"
 
 PEBBLE_BLUE = "#00AAFF"   # nearest entry in Pebble's 64-colour palette to Telegram's #2AABEE
 
+_spec = importlib.util.spec_from_file_location("mld", Path(__file__).with_name("make-launcher-drawable.py"))
+mld = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(mld)
+PLANE = mld.PLANE
 
-def drawable_to_svg(xml_path: Path, background: str | None) -> tuple[str, str]:
-    """Translate our (simple) VectorDrawable into SVG. Returns (svg, plane path)."""
+
+def drawable_to_svg(xml_path: Path, background: str | None) -> str:
+    """Translate our (simple) VectorDrawable into SVG: paths, groups with a
+    translate/scale or a clip-path, fillAlpha and fillType."""
     root = ET.parse(xml_path).getroot()
     vw, vh = root.get(A + "viewportWidth"), root.get(A + "viewportHeight")
-    body, last_path = [], ""
+    body, clips = [], 0
 
-    def path_el(p):
-        nonlocal last_path
-        last_path = p.get(A + "pathData")
+    def path_el(p, extra=""):
         rule = ' fill-rule="evenodd"' if p.get(A + "fillType") == "evenOdd" else ""
-        return f'<path fill="{p.get(A + "fillColor")}"{rule} d="{last_path}"/>'
+        alpha = f' fill-opacity="{p.get(A + "fillAlpha")}"' if p.get(A + "fillAlpha") else ""
+        return f'<path fill="{p.get(A + "fillColor")}"{rule}{alpha}{extra} d="{p.get(A + "pathData")}"/>'
 
     for el in root:
         if el.tag == "path":
             body.append(path_el(el))
         elif el.tag == "group":
-            tx, ty = el.get(A + "translateX", "0"), el.get(A + "translateY", "0")
-            sx, sy = el.get(A + "scaleX", "1"), el.get(A + "scaleY", "1")
-            inner = "".join(path_el(p) for p in el if p.tag == "path")
-            body.append(f'<g transform="translate({tx},{ty}) scale({sx},{sy})">{inner}</g>')
+            clip = el.find("clip-path")
+            if clip is not None:
+                clips += 1
+                body.append(f'<clipPath id="c{clips}"><path d="{clip.get(A + "pathData")}"/></clipPath>')
+                body += [path_el(p, f' clip-path="url(#c{clips})"') for p in el if p.tag == "path"]
+            else:
+                tx, ty = el.get(A + "translateX", "0"), el.get(A + "translateY", "0")
+                sx, sy = el.get(A + "scaleX", "1"), el.get(A + "scaleY", "1")
+                inner = "".join(path_el(p) for p in el if p.tag == "path")
+                body.append(f'<g transform="translate({tx},{ty}) scale({sx},{sy})">{inner}</g>')
     bg = f'<rect width="{vw}" height="{vh}" fill="{background}"/>' if background else ""
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vw} {vh}">{bg}{"".join(body)}</svg>'
-    return svg, last_path
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {vw} {vh}">{bg}{"".join(body)}</svg>'
 
 
 def launcher_background() -> str:
@@ -133,8 +141,8 @@ def one_bit(img: Image.Image) -> Image.Image:
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    launcher_svg, plane = drawable_to_svg(RES / "drawable/ic_launcher_foreground.xml", launcher_background())
-    circle = enclosing_circle(plane)
+    launcher_svg = drawable_to_svg(RES / "drawable/ic_launcher_foreground.xml", launcher_background())
+    plane, circle = PLANE, enclosing_circle(PLANE)
 
     # A launcher shows only the centre 72 of the 108 canvas, then masks that.
     for size, name in ((432, "launcher_preview.png"), (144, "companion_icon_144.png")):
@@ -144,7 +152,6 @@ def main() -> None:
 
     render(menu_svg(plane, circle, "#AAAAAA"), 25).save(OUT / "menu_icon~color.png")
     one_bit(render(menu_svg(plane, circle, "#FFFFFF"), 25)).save(OUT / "menu_icon~bw.png")
-    shutil.copy(RES / "drawable/ic_launcher_foreground.xml", OUT / "android_launcher_foreground.xml")
     for size in (80, 144):
         render(squircle_svg(plane, circle, canvas=size), size).save(OUT / f"store_icon_{size}.png")
 
