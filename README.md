@@ -67,7 +67,8 @@ and the themed-icon layer `ic_launcher_monochrome.xml`): a Pebble Time 2 seen
 face-on, from the outline in `art/pt2_outline.json` (traced from Core Devices'
 published dimension drawing), with the Telegram paper plane on its glass, all
 seen through a slight magnifier lens, and the notification status icon
-`ic_stat_watch.xml`, the same watch zoomed in on the 24 dp grid. `art/render-icons.py` renders a launcher
+`ic_stat_watch.xml`, the outline of that glass filling the 24 dp grid with the
+plane inside. `art/render-icons.py` renders a launcher
 preview from the drawable and draws the Pebble icons from the same plane
 glyph into `art/pebble/`: the 25×25 watch menu icon (colour and 1-bit
 variants) and the 80×80 / 144×144 Rebble appstore icons. Copy those into the
