@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Write the launcher drawables (foreground + monochrome): a Pebble Time 2
-seen face-on with the Telegram paper plane on its glass, through a slight
+"""Write the generated drawables: the launcher (foreground + monochrome
+layers) and the notification status icon. Both are a Pebble Time 2 seen
+face-on with the Telegram paper plane on its glass, through a slight
 magnifier lens.
 
 The body and glass polygons in art/pt2_outline.json were traced, in mm and
@@ -14,6 +15,14 @@ unchanged outside) and writes
 
   app/src/main/res/drawable/ic_launcher_foreground.xml
   app/src/main/res/drawable/ic_launcher_monochrome.xml
+
+The status icon is the same watch zoomed in on the 24 dp grid: the body
+without its lug horns (real side profile, round corners, flat top at the
+case edge between the horns) spans the full height, no straps, the glass
+shrunk so the frame is 1.5 dp at the sides, the plane 74% of the glass
+width, all through a 1.15x lens. Alpha only, since Android re-tints small icons. Writes
+
+  app/src/main/res/drawable/ic_stat_watch.xml
 
 Run from the repo root, then art/render-icons.py for the previews and the
 Pebble PNGs. Standard library only.
@@ -37,6 +46,15 @@ PLANE_H = 20.8        # plane height in canvas units, before the lens
 PLANE_DX = -1.0       # nudge left: the glyph's ink sits right of its box centre
 LENS_S, LENS_R = 0.15, 36
 SHEEN = "M20,20H70L20,70Z"
+
+STAT_C = 12.0         # status icon: 24 dp grid centre
+STAT_BODY_H = 24      # body height incl. horns, dp
+STAT_FRAME = 1.5      # frame width at the sides, dp (glass is shrunk to leave this)
+STAT_TOP_MM = 21.42   # case edge between the horns, mm from centre (horns reach 23.27)
+STAT_CORNER_MM = 6    # corner radius of the hornless body, mm
+STAT_PLANE = 0.74     # plane width after the lens, as a fraction of the glass width
+STAT_PLANE_DX = -0.4
+STAT_LENS_S = 0.15    # lens strength; radius = STAT_BODY_H / 2
 
 BG = "#2B3440"                                  # @color/ic_launcher_background
 BODY_C, STRAP_C, MARK_C = "#FFFFFF", "#0B0F14", "#FFFFFF"
@@ -111,17 +129,17 @@ def transform(subs, scale=1.0, dx=0.0, dy=0.0, about=(C, C)):
             for s in subs]
 
 
-def lens(p):
-    """Radial magnifier: inside LENS_R, r -> R*g(r/R) with g(x) = (1+s)x/(1+sx),
-    so the centre is magnified (1+s)x and the edge squeezed to meet the
-    unchanged outside without a seam."""
-    dx, dy = p[0] - C, p[1] - C
+def lens(p, c=C, R=LENS_R, s=LENS_S):
+    """Radial magnifier about (c, c): inside R, r -> R*g(r/R) with
+    g(x) = (1+s)x/(1+sx), so the centre is magnified (1+s)x and the edge
+    squeezed to meet the unchanged outside without a seam."""
+    dx, dy = p[0] - c, p[1] - c
     r = math.hypot(dx, dy)
-    if r == 0 or r >= LENS_R:
+    if r == 0 or r >= R:
         return p
-    x = r / LENS_R
-    k = LENS_R * (1 + LENS_S) * x / (1 + LENS_S * x) / r
-    return (C + dx * k, C + dy * k)
+    x = r / R
+    k = R * (1 + s) * x / (1 + s * x) / r
+    return (c + dx * k, c + dy * k)
 
 
 def warped(subs):
@@ -129,8 +147,13 @@ def warped(subs):
 
 
 # ---------------------------------------------------------------- the watch
-def poly_path(points, k, scale=1.0):
-    return "M" + "L".join(f"{C + x * scale * k:.2f},{C + y * scale * k:.2f}" for x, y in points) + "Z"
+def poly_path(points, k, scale=1.0, c=C):
+    return "M" + "L".join(f"{c + x * scale * k:.2f},{c + y * scale * k:.2f}" for x, y in points) + "Z"
+
+
+def extent(subs, axis=0):
+    vs = [p[axis] for s in subs for p in s]
+    return min(vs), max(vs)
 
 
 def strap_path(k):
@@ -162,6 +185,80 @@ def plane_subs():
     return [[(C + PLANE_DX + (px - cx) * k, C + (py - cy) * k) for px, py in s] for s in subs]
 
 
+# ------------------------------------------------------------ status icon
+def side_x(y):
+    """x of the real right-hand body side at height y (mm, linear interpolation)."""
+    pts = sorted((py, px) for px, py in OUTLINE["body"] if px > 12 and abs(py) < STAT_TOP_MM - 0.3)
+    for (y0, x0), (y1, x1) in zip(pts, pts[1:]):
+        if y0 <= y <= y1:
+            return x0 + (x1 - x0) * (y - y0) / (y1 - y0)
+    return pts[0][1] if y < pts[0][0] else pts[-1][1]
+
+
+def hornless_body(R=STAT_CORNER_MM, n=24):
+    """The case without lug horns: flat top at STAT_TOP_MM, circular corners
+    of radius R into the real side profile. Right half top to bottom, mirrored."""
+    half = [(0.0, -STAT_TOP_MM)]
+    cx, cy = side_x(-STAT_TOP_MM + R) - R, -STAT_TOP_MM + R
+    for i in range(n + 1):
+        a = math.pi / 2 * (1 - i / n)
+        half.append((cx + R * math.cos(a), cy - R * math.sin(a)))
+    for i in range(1, 60):
+        y = -STAT_TOP_MM + R + i * 2 * (STAT_TOP_MM - R) / 60
+        half.append((side_x(y), y))
+    cx, cy = side_x(STAT_TOP_MM - R) - R, STAT_TOP_MM - R
+    for i in range(n + 1):
+        a = -math.pi / 2 * i / n
+        half.append((cx + R * math.cos(a), cy - R * math.sin(a)))
+    half.append((0.0, STAT_TOP_MM))
+    return half + [(-x, y) for x, y in reversed(half[1:-1])]
+
+
+def stat_drawable():
+    body_mm = hornless_body()
+    body_h_mm = max(p[1] for p in body_mm) - min(p[1] for p in body_mm)
+    body_w_mm = max(p[0] for p in body_mm) - min(p[0] for p in body_mm)
+    glass_w_mm = max(p[0] for p in OUTLINE["glass"]) - min(p[0] for p in OUTLINE["glass"])
+    k = STAT_BODY_H / body_h_mm
+    glass_scale = (body_w_mm * k - 2 * STAT_FRAME) / (glass_w_mm * k)
+    warp = lambda subs: [[lens(p, STAT_C, STAT_BODY_H / 2, STAT_LENS_S) for p in s] for s in subs]
+
+    body = warp(parse(poly_path(body_mm, k, c=STAT_C), step=0.3))
+    glass = warp(parse(poly_path(OUTLINE["glass"], k, glass_scale, c=STAT_C), step=0.3))
+
+    # Plane centred on the grid, pre-scaled so its width *after* the lens is STAT_PLANE of the glass.
+    gl, gr = extent(glass)
+    target = STAT_PLANE * (gr - gl)
+    raw = parse(PLANE, step=0.1)
+    (x0, x1), (y0, y1) = extent(raw), extent(raw, 1)
+    mx, my, w = (x0 + x1) / 2, (y0 + y1) / 2, target
+    for _ in range(4):
+        kp = w / (x1 - x0)
+        plane = warp([[(STAT_C + STAT_PLANE_DX + (x - mx) * kp, STAT_C + (y - my) * kp) for x, y in s] for s in raw])
+        lo, hi = extent(plane)
+        w *= target / (hi - lo)
+
+    return ('<?xml version="1.0" encoding="utf-8"?>\n' + f"""<!--
+  Status-bar icon: the launcher's watch zoomed in and without its lug horns,
+  body {STAT_BODY_H} dp tall with the glass cut out and the plane left standing
+  in it, through a {1 + STAT_LENS_S:g}x lens. Notification small icons are reduced to their alpha
+  channel and re-tinted, so it is a flat white shape on transparency.
+  Generated by art/make-drawables.py; edit there, not here.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="{emit(body) + emit(glass) + emit(plane)}" />
+</vector>
+""")
+
+
 def main():
     k = BODY_W / (max(p[0] for p in OUTLINE["body"]) - min(p[0] for p in OUTLINE["body"]))
     face = parse(poly_path(OUTLINE["glass"], k, GLASS_SCALE))
@@ -184,7 +281,7 @@ def main():
   darker blue rim round the glass and a light sheen across its upper-left
   corner, all seen through a {1 + LENS_S:g}x magnifier lens (radius {LENS_R}).
   Background ({BG}) comes from @color/ic_launcher_background.
-  Generated by art/make-launcher-drawable.py; edit there, not here.
+  Generated by art/make-drawables.py; edit there, not here.
 -->
 """ + vec
           + path(STRAP_C, straps_w, "straps")
@@ -203,7 +300,7 @@ def main():
   Themed-icon layer (Android 13+): launchers take only the alpha and tint it.
   Watch silhouette with the glass cut out and the plane left standing in it.
   Geometry (including the lens) matches ic_launcher_foreground.
-  Generated by art/make-launcher-drawable.py; edit there, not here.
+  Generated by art/make-drawables.py; edit there, not here.
 -->
 """ + vec
             + path("#FFFFFF", straps_w, "straps")
@@ -213,7 +310,8 @@ def main():
 
     (RES / "ic_launcher_foreground.xml").write_text(fg)
     (RES / "ic_launcher_monochrome.xml").write_text(mono)
-    print(f"launcher drawables -> {RES.relative_to(ROOT)}")
+    (RES / "ic_stat_watch.xml").write_text(stat_drawable())
+    print(f"drawables -> {RES.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

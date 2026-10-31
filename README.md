@@ -61,19 +61,20 @@ Signing is a separate step with a key that is not part of this repo. See
 
 ## Icons
 
-`art/make-launcher-drawable.py` writes the launcher drawables
+`art/make-drawables.py` writes the launcher drawables
 ([`ic_launcher_foreground.xml`](app/src/main/res/drawable/ic_launcher_foreground.xml)
 and the themed-icon layer `ic_launcher_monochrome.xml`): a Pebble Time 2 seen
 face-on, from the outline in `art/pt2_outline.json` (traced from Core Devices'
 published dimension drawing), with the Telegram paper plane on its glass, all
-seen through a slight magnifier lens. `art/render-icons.py` renders a launcher
+seen through a slight magnifier lens, and the notification status icon
+`ic_stat_watch.xml`, the same watch zoomed in on the 24 dp grid. `art/render-icons.py` renders a launcher
 preview from the drawable and draws the Pebble icons from the same plane
 glyph into `art/pebble/`: the 25×25 watch menu icon (colour and 1-bit
 variants) and the 80×80 / 144×144 Rebble appstore icons. Copy those into the
 watch app repo / the store listing; edit the generator, not the PNGs.
 
 ```bash
-python3 art/make-launcher-drawable.py
+python3 art/make-drawables.py
 python3 -m venv .venv && .venv/bin/pip install cairosvg pillow
 .venv/bin/python art/render-icons.py
 ```

@@ -437,7 +437,7 @@ class AgentService : Service() {
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Pebble Operator")
             .setContentText(text)
-            .setSmallIcon(R.drawable.ic_stat_operator)
+            .setSmallIcon(R.drawable.ic_stat_watch)
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null, "Stop", stop).build())
             .setOngoing(true)

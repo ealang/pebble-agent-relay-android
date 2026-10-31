@@ -2,9 +2,9 @@
 """Render the previews and the Pebble-side icons.
 
 The launcher drawable (app/src/main/res/drawable/ic_launcher_foreground.xml,
-written by art/make-launcher-drawable.py) is translated to SVG and rendered
+written by art/make-drawables.py) is translated to SVG and rendered
 as a launcher would show it. The Pebble icons use the same paper-plane glyph
-(make-launcher-drawable.PLANE, without the lens) on a rounded square. Writes
+(make-drawables.PLANE, without the lens) on a rounded square. Writes
 into art/pebble/:
 
   menu_icon~color.png   25x25  watch launcher menu, colour platforms. The
@@ -35,7 +35,7 @@ A = "{http://schemas.android.com/apk/res/android}"
 
 PEBBLE_BLUE = "#00AAFF"   # nearest entry in Pebble's 64-colour palette to Telegram's #2AABEE
 
-_spec = importlib.util.spec_from_file_location("mld", Path(__file__).with_name("make-launcher-drawable.py"))
+_spec = importlib.util.spec_from_file_location("mld", Path(__file__).with_name("make-drawables.py"))
 mld = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(mld)
 PLANE = mld.PLANE
 
