@@ -43,7 +43,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1.0"
 
         buildConfigField("int", "TELEGRAM_API_ID", "$telegramApiId")
         buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramApiHash\"")
