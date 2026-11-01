@@ -30,8 +30,13 @@ Commit the bump; tag it after the release is out (`git tag v0.2`).
 ## 3. Build
 
 ```bash
-./gradlew lintRelease clean assembleRelease bundleRelease
+./gradlew clean
+./gradlew lintRelease assembleRelease bundleRelease
 ```
+
+Two invocations, not one: with `clean` in the same command line as the
+other tasks Gradle's scheduler deadlocks ("Unable to make progress running
+work").
 
 Lint first: its `ExpiredTargetSdkVersion` check fails the build once
 `targetSdk` falls below what Play currently accepts (Google raises the bar
