@@ -411,12 +411,17 @@ private fun CopySettingsCard(state: ScreenState) {
 
         // The Pebble app's segmented row, same labels and order. It defaults
         // to Recording, which the server rejects; Transcription is the one
-        // to pick. Disabled greys the text, but Material also fades the
-        // outline to near nothing; the border is kept at full strength so
-        // the boxes read like the ones above.
+        // to pick. Material's disabled look throughout, so the whole row
+        // reads as a picture of the setting rather than a control: text at
+        // 38%, outline at 12%, and the selected segment on the standard
+        // disabled-container grey instead of the live tint. Material3 1.3.0
+        // only fades the selected segment on its own (the unselected ones
+        // keep full-strength text and border, fixed upstream later), so
+        // the same two opacities are spelled out for those here.
         FieldLabel("What to send")
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             val modes = listOf("Recording", "Transcription", "Both")
+            val scheme = MaterialTheme.colorScheme
             modes.forEachIndexed { index, mode ->
                 SegmentedButton(
                     selected = mode == "Transcription",
@@ -424,8 +429,9 @@ private fun CopySettingsCard(state: ScreenState) {
                     enabled = false,
                     shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
                     colors = SegmentedButtonDefaults.colors(
-                        disabledActiveBorderColor = MaterialTheme.colorScheme.outline,
-                        disabledInactiveBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledActiveContainerColor = scheme.onSurface.copy(alpha = 0.12f),
+                        disabledInactiveContentColor = scheme.onSurface.copy(alpha = 0.38f),
+                        disabledInactiveBorderColor = scheme.outline.copy(alpha = 0.12f),
                     ),
                 ) { Text(mode) }
             }
