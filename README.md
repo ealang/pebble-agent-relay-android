@@ -1,7 +1,11 @@
-# Pebble Operator
+# Agent Relay for Pebble
 
 Forwards dictated messages from a Pebble watch to a Telegram chat of your
 choice. The watch is the microphone; this app is the pipe.
+
+Agent Relay uses the Telegram API and is part of the Telegram ecosystem. It
+is not affiliated with or endorsed by Telegram. Pebble is a trademark of
+Core Devices LLC.
 
 Two front doors feed one durable queue:
 

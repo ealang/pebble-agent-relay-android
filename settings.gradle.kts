@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "pebble-operator"
+rootProject.name = "pebble-agent-relay-android"
 include(":app")

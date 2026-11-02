@@ -35,11 +35,11 @@ val telegramApiId = buildSetting("TELEGRAM_API_ID")?.toIntOrNull() ?: 0
 val telegramApiHash = buildSetting("TELEGRAM_API_HASH").orEmpty()
 
 android {
-    namespace = "io.github.ealang.operator"
+    namespace = "io.github.ealang.agentrelay"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.ealang.operator"
+        applicationId = "io.github.ealang.agentrelay"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

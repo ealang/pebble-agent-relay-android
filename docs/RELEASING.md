@@ -76,10 +76,10 @@ $BT/zipalign -c -P 16 4 app-arm64-v8a-release-unsigned.apk
 
 $BT/apksigner sign \
   --ks release.keystore --ks-key-alias <alias> \
-  --out pebble-operator-0.2-arm64-v8a.apk \
+  --out agent-relay-0.2-arm64-v8a.apk \
   app-arm64-v8a-release-unsigned.apk
 
-$BT/apksigner verify --print-certs pebble-operator-0.2-arm64-v8a.apk
+$BT/apksigner verify --print-certs agent-relay-0.2-arm64-v8a.apk
 ```
 
 `apksigner` prompts for the passwords; `--ks-pass env:VAR` /
