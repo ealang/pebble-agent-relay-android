@@ -1,24 +1,18 @@
 # Agent Relay for Pebble
 
-Forwards dictated messages from a Pebble watch to a Telegram chat of your
-choice. The watch is the microphone; this app is the pipe.
+A streamlined Android app for sending a dictated message to a single AI agent
+over Telegram. One app supports both the
+[Pebble Index](https://repebble.com/index) and the companion
+[Pebble watchapp](https://github.com/ealang/pebble-agent-relay-watchapp).
+For Index, it provides a webhook endpoint that runs locally on Android.
+Messages are queued on the phone, so a dictation sent while offline is
+delivered once the phone reconnects.
 
-Agent Relay uses the Telegram API and is part of the Telegram ecosystem. It
-is not affiliated with or endorsed by Telegram. Pebble is a trademark of
-Core Devices LLC.
+## Using it
 
-Two front doors feed one durable queue:
-
-- **PebbleKit 2** — the Core Devices app (CoreApp) binds to this app and
-  hands over dictations from the companion watchapp directly. This is the
-  primary path and needs nothing enabled or open on the phone.
-- **Local webhook** (optional, off by default) — a loopback-only HTTP
-  endpoint (`POST /index`) for senders on this same phone.
-
-Messages are written to disk before they are acknowledged, then delivered to
-Telegram by a short-lived foreground service that retries until the network
-cooperates and exits when the queue is empty. Acknowledged means durably
-queued; delivery is confirmed against Telegram before an item is dropped.
+The app walks you through connecting to Telegram and choosing the chat to
+deliver to. For Index, it lets you enable a private `127.0.0.1` endpoint to
+point the Index voice action at.
 
 ## Building
 
@@ -62,69 +56,3 @@ Release build (unsigned, split per ABI, plus the Play bundle):
 
 Signing is a separate step with a key that is not part of this repo. See
 [docs/RELEASING.md](docs/RELEASING.md) for the full recipe.
-
-## Icons
-
-`art/make-drawables.py` writes the launcher drawables
-([`ic_launcher_foreground.xml`](app/src/main/res/drawable/ic_launcher_foreground.xml)
-and the themed-icon layer `ic_launcher_monochrome.xml`): a Pebble Time 2 seen
-face-on, from the outline in `art/pt2_outline.json` (traced from Core Devices'
-published dimension drawing), with the Telegram paper plane on its glass, all
-seen through a slight magnifier lens, and the notification status icon
-`ic_stat_watch.xml`, the outline of that glass filling the 24 dp grid with the
-plane inside. `art/render-icons.py` renders a launcher
-preview from the drawable and draws the Pebble icons from the same plane
-glyph into `art/pebble/`: the 25×25 watch menu icon (colour and 1-bit
-variants) and the 80×80 / 144×144 Rebble appstore icons. Copy those into the
-watch app repo / the store listing; edit the generator, not the PNGs.
-
-```bash
-python3 art/make-drawables.py
-python3 -m venv .venv && .venv/bin/pip install cairosvg pillow
-.venv/bin/python art/render-icons.py
-```
-
-## Security
-
-**Posture.** This app's job is to move your own dictations into your own
-Telegram account on your own phone. There are no accounts, no analytics, no
-cloud component, and no remote endpoints other than Telegram itself (via
-TDLib/MTProto).
-
-**Network exposure.** The only listener is the optional webhook server:
-off by default, hardcoded to bind `127.0.0.1` (no other bind address is
-supported), one endpoint, nothing served without auth. Requests carry a
-bearer token — 192 bits from `SecureRandom`, generated on first use, stored
-encrypted under an Android Keystore key, and compared in constant time.
-Unknown paths 404 before auth is checked. When the server is disabled, no
-socket exists; delivery-only runs never bind one.
-
-**Exported surface.** Three components are reachable from outside the app,
-none with data exposure:
-
-- The launcher activity (the UI).
-- The PebbleKit 2 service — exported with no permission because the PK2
-  protocol requires it (CoreApp requests none). It gates in code, failing
-  closed at three layers: the PebbleKit app picker is pinned to
-  `coredevices.coreapp` with auto-selection disabled; every call is checked
-  at the Binder entry point (the calling uid must belong to CoreApp *and*
-  carry its pinned signing certificate); and only the companion watchapp's
-  known UUIDs are accepted. Rejected callers get the protocol's refusal shape and
-  learn nothing.
-- The boot receiver is not exported; the system delivers its protected
-  broadcasts regardless.
-
-The delivery service itself is not exported.
-
-**At rest.** Everything lives in the app-private `filesDir`: the message
-queue (plain text — Android's per-app sandbox is the boundary), the debug
-log (event names and message *lengths*, never message text), and TDLib's
-database, which is encrypted with a random per-install 32-byte key wrapped
-by the Android Keystore — a copied database is useless off this phone.
-Backups are disabled app-wide (`allowBackup="false"`), so neither secrets
-nor the logged-in Telegram session leave the sandbox via backup or
-device-migration tools.
-
-**Trust boundaries.** CoreApp necessarily sees every transcript — it is the
-transport from the watch. Any watchapp on your own watch could reuse a
-companion UUID; the attacker in that scenario is you.
