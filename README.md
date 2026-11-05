@@ -4,7 +4,9 @@ Android companion app for sending voice messages to a single AI agent via Telegr
 
 The same app supports both [Index](https://repebble.com/index) and Pebble:
 - **Index**: The app runs a webhook server locally on your phone. See in-app instructions.
-- **Pebble**: [watchapp](https://github.com/ealang/pebble-agent-relay-watchapp).
+- **Pebble**: [watchapp](https://apps.repebble.com/69bcd8669ec641129e098dd3).
+
+Messages are buffered in case the phone is offline.
 
 Download the [latest release](https://github.com/ealang/pebble-agent-relay-android/releases).
 
