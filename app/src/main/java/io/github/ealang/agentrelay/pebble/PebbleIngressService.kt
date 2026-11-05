@@ -41,7 +41,7 @@ import java.util.concurrent.Executors
  *     itself: the uid must belong to [PebbleContract.COREAPP_PACKAGE] *and*
  *     carry its pinned signing certificate. This holds even if the package
  *     name is squatted by a sideloaded impostor.
- *  3. [onMessageReceived] accepts only our watchapp UUIDs — CoreApp routes
+ *  3. [onMessageReceived] accepts only our watchapp UUID — CoreApp routes
  *     any watchapp that merely *declares* us as its companion, so the UUID
  *     is checked on our side.
  */
@@ -122,7 +122,7 @@ class PebbleIngressService : BasePebbleListenerService() {
         data: PebbleDictionary,
         watch: WatchIdentifier,
     ): ReceiveResult {
-        if (watchappUUID !in PebbleContract.WATCHAPP_UUIDS) {
+        if (watchappUUID != PebbleContract.WATCHAPP_UUID) {
             Log.w(TAG, "Nacked a message from foreign watchapp $watchappUUID")
             return ReceiveResult.Nack
         }

@@ -55,13 +55,10 @@ class PebbleContractTest {
     }
 
     @Test
-    fun `both watchapp builds are accepted`() {
+    fun `the published watchapp is accepted`() {
         assertEquals(
-            setOf(
-                UUID.fromString("c0b48501-a0da-4fbb-9013-a4ea68dc6165"),
-                UUID.fromString("641826b9-9512-48d3-8354-332fc90568bd"),
-            ),
-            PebbleContract.WATCHAPP_UUIDS,
+            UUID.fromString("c0b48501-a0da-4fbb-9013-a4ea68dc6165"),
+            PebbleContract.WATCHAPP_UUID,
         )
     }
 
