@@ -1,12 +1,12 @@
 # Agent Relay for Pebble
 
-A streamlined Android app for sending a dictated message to a single AI agent
-over Telegram. One app supports both the
-[Pebble Index](https://repebble.com/index) and the companion
-[Pebble watchapp](https://github.com/ealang/pebble-agent-relay-watchapp).
-For Index, it provides a webhook endpoint that runs locally on Android.
-Messages are queued on the phone, so a dictation sent while offline is
-delivered once the phone reconnects.
+Android companion app for sending voice messages to a single AI agent via Telegram.
+
+The same app supports both [Index](https://repebble.com/index) and Pebble:
+- **Index**: The app runs a webhook server locally on your phone. See in-app instructions.
+- **Pebble**: [watchapp](https://github.com/ealang/pebble-agent-relay-watchapp).
+
+Download the [latest release](https://github.com/ealang/pebble-agent-relay-android/releases).
 
 ## Using it
 
@@ -53,6 +53,3 @@ Release build (unsigned, split per ABI, plus the Play bundle):
 ```bash
 ./gradlew assembleRelease bundleRelease
 ```
-
-Signing is a separate step with a key that is not part of this repo. See
-[docs/RELEASING.md](docs/RELEASING.md) for the full recipe.
